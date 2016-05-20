@@ -1,2 +1,4 @@
-# ProceduralExamples
-Examples of procedural mesh generation in Unreal 4.
+# ProceduralMeshDemos
+Example Unreal 4 maps for ProceduralMeshes plugin.
+
+TODO Write quick index of examples in here
