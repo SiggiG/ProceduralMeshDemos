@@ -6,7 +6,7 @@ public class ProceduralMeshDemos : ModuleRules
 {
 	public ProceduralMeshDemos(TargetInfo Target)
 	{
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshes" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
