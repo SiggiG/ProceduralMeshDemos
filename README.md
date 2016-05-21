@@ -6,6 +6,7 @@
 This project provides example useage of the procedural mesh plugin. Please see that project for further documentation:
 https://github.com/SiggiG/ProceduralMeshes
 
+![](Images/ProcExamples.jpg?raw=true "Procedural Examples")
 
 ## Contact info
 
