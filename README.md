@@ -11,11 +11,10 @@ https://github.com/SiggiG/ProceduralMeshes
 
 If you have any questions, suggestions or want to contribute to this project please contact me at one of these places:
 * You can reach me via email at siggi@siggig.is
-* Send essage me on the Unreal forums on username SiggiG.
+* Message me on the Unreal forums on username SiggiG.
 * Twitter: https://twitter.com/SiggiGG
 
 ## License
-
 By using the code here you accept the **GPL V3** license.
 
 Copyright (c) 2016 Sigurdur Gunnarsson
