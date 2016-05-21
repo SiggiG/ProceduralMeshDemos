@@ -9,7 +9,7 @@ https://github.com/SiggiG/ProceduralMeshes
 
 ## Contact info
 
-If you have any questions, suggestions or want to contribute to this project please contact me at once of these places:
+If you have any questions, suggestions or want to contribute to this project please contact me at one of these places:
 * You can reach me via email at siggi@siggig.is
 * Send essage me on the Unreal forums on username SiggiG.
 * Twitter: https://twitter.com/SiggiGG
