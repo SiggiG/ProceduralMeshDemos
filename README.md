@@ -3,7 +3,7 @@
 
 ## Overview
 
-This project provides an example use of the procedural mesh plugin here:
+This project provides example useage of the procedural mesh plugin. Please see that project for further documentation:
 https://github.com/SiggiG/ProceduralMeshes
 
 
