@@ -3,7 +3,7 @@
 
 ## Overview
 
-This project provides example useage of the procedural mesh plugin. Please see that project for further documentation:
+This project provides example useage of procedural mesh generation in Unreal Engine 4. Please see that project for further documentation:
 https://github.com/SiggiG/ProceduralMeshes
 
 ![procexamples](https://cloud.githubusercontent.com/assets/7083424/15453990/b929700a-2022-11e6-8851-6566da93c5f5.jpg)
