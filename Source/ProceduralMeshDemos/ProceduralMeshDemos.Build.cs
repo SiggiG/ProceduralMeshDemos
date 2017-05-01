@@ -4,8 +4,8 @@ using UnrealBuildTool;
 
 public class ProceduralMeshDemos : ModuleRules
 {
-	public ProceduralMeshDemos(TargetInfo Target)
-	{
+    public ProceduralMeshDemos(ReadOnlyTargetRules Target) : base(Target)
+    {
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshes", "RenderCore", "ShaderCore", "RHI", "RuntimeMeshComponent" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
