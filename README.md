@@ -16,9 +16,6 @@ I wrote the code to be readable, trying my best to explain each step along the w
 
 There is a lot of code duplication between the different examples which I felt was OK for the first few examples, but I will refactor some of the common functions into a utility class soon.
 
-I decided to write this as a plugin, so it can be used in other projects and also provided an example project showing how this is done:
-https://github.com/SiggiG/ProceduralMeshDemos/
-
 
 ## Explanation of a few Unreal 4 concepts.
 
