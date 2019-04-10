@@ -58,3 +58,6 @@ Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Misc
+.vs/**/*
