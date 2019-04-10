@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Procedural Mesh Examples",
+	"Description": "Examples of procedurally generated meshes",
+	"Category": "SiggiG",
+	"CreatedBy": "Sigurdur Gunnarsson",
+	"CreatedByURL": "https://github.com/SiggiG",
+	"DocsURL": "https://github.com/SiggiG/ProceduralMeshes",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": true,
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "ProceduralMeshes",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
