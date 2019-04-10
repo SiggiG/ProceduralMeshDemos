@@ -1,6 +1,3 @@
 [submodule "Plugins/ProceduralMeshes"]
 	path = Plugins/ProceduralMeshes
 	url = https://github.com/SiggiG/ProceduralMeshes.git
-[submodule "Plugins/RuntimeMeshComponent"]
-	path = Plugins/RuntimeMeshComponent
-	url = https://github.com/Koderz/UE4RuntimeMeshComponent.git
