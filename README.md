@@ -1,10 +1,9 @@
 
 # Procedural mesh examples for Unreal 4
 
-## Overview
-
 ![procexamples](https://cloud.githubusercontent.com/assets/7083424/15453990/b929700a-2022-11e6-8851-6566da93c5f5.jpg)
 
+## Overview
 I've been wanting to learn how to procedurally generate meshes in Unreal for some time now, and have noticed interest from the community as well.
 
 There have been a few good discussions on the Unreal forums, but not a lot of samples for how to do this.
