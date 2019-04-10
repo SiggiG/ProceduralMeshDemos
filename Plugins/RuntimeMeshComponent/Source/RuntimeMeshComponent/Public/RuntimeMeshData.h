@@ -872,6 +872,9 @@ private:
 		const TArray<FVector2D>& UV0, const TArray<FVector2D>& UV1, TFunction<FColor(int32 Index)> ColorAccessor, int32 NumColors, const TArray<FRuntimeMeshTangent>& Tangents, ESectionUpdateFlags UpdateFlags);
 
 public:
+	
+	// HORU :)
+	void UpdateMeshSectionColors(int32 SectionIndex, TArray<FColor>& Colors, ESectionUpdateFlags UpdateFlags = ESectionUpdateFlags::None);
 
 	void CreateMeshSection(int32 SectionIndex, const TArray<FVector>& Vertices, const TArray<int32>& Triangles, const TArray<FVector>& Normals,
 		const TArray<FVector2D>& UV0, const TArray<FColor>& Colors, const TArray<FRuntimeMeshTangent>& Tangents, bool bCreateCollision = false,
