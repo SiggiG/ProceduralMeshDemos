@@ -16,6 +16,8 @@ I wrote the code to be readable, trying my best to explain each step along the w
 
 There is a lot of code duplication between the different examples which I felt was OK for the first few examples, but I will refactor some of the common functions into a utility class soon.
 
+PLEASE NOTE: I update these examples from time to time to follow the latest Unreal versions.  If you get really stuck feel free to send a PR or contact me below.
+
 
 ## Explanation of a few Unreal 4 concepts.
 
