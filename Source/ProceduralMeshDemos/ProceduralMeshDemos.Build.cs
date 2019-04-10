@@ -6,7 +6,7 @@ public class ProceduralMeshDemos : ModuleRules
 {
     public ProceduralMeshDemos(ReadOnlyTargetRules Target) : base(Target)
     {
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshes", "RenderCore", "ShaderCore", "RHI", "RuntimeMeshComponent" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshes", "RenderCore", "RHI", "RuntimeMeshComponent" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

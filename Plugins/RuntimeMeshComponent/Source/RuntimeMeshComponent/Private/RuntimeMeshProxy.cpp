@@ -19,7 +19,7 @@ FRuntimeMeshProxy::~FRuntimeMeshProxy()
 void FRuntimeMeshProxy::CreateSection_GameThread(int32 SectionId, const FRuntimeMeshSectionCreationParamsPtr& SectionData)
 {
 	// HORU: 4.22 rendering
-	NQUEUE_RENDER_COMMAND(FRuntimeMeshProxyCreateSection)(
+	ENQUEUE_RENDER_COMMAND(FRuntimeMeshProxyCreateSection)(
 	       [this, SectionId, SectionData](FRHICommandListImmediate & RHICmdList)
 		{
 			CreateSection_RenderThread(SectionId, SectionData);
