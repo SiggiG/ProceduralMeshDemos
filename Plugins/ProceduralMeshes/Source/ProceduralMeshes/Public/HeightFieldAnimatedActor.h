@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "GameFramework/Actor.h"
-#include "RuntimeMeshComponent.h"
+#include "CoreMinimal.h"
+#include "RuntimeMeshActor.h"
 #include "HeightFieldAnimatedActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API AHeightFieldAnimatedActor : public AActor
+class PROCEDURALMESHES_API AHeightFieldAnimatedActor : public ARuntimeMeshActor // TODO Create a new provider instead of using the static provider
 {
 	GENERATED_BODY()
 
@@ -40,22 +40,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float AnimationSpeedY = 4.5f;
 
-	virtual void PostLoad() override;
-	virtual void PostActorCreated() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 	virtual void Tick(float DeltaSeconds) override;
 
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
-
 protected:
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Default)
-	USceneComponent* RootNode;
-
-	UPROPERTY()
-	URuntimeMeshComponent* MeshComponent;
+	// TODO Create a new provider instead of using the static provider
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	URuntimeMeshProviderStatic* StaticProvider;
 
 	float CurrentAnimationFrameX = 0.0f;
 	float CurrentAnimationFrameY = 0.0f;
@@ -63,14 +55,15 @@ protected:
 private:
 	void GenerateMesh();
 	void GeneratePoints();
-	void GenerateGrid(TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, FVector2D InSize, int32 InLengthSections, int32 InWidthSections, const TArray<float>& InHeightValues);
+	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
 
 	TArray<float> HeightValues;
 	float MaxHeightValue = 0.0f;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
-	TArray<FRuntimeMeshVertexSimple> Vertices;
+	TArray<FVector> Positions;
 	TArray<int32> Triangles;
+	TArray<FVector> Normals;
+	TArray<FVector2D> TexCoords;
 };
