@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "GameFramework/Actor.h"
-#include "RuntimeMeshComponent.h"
+#include "CoreMinimal.h"
+#include "RuntimeMeshActor.h"
 #include "SierpinskiTetrahedron.generated.h"
 
 UENUM(BlueprintType)
@@ -28,21 +28,33 @@ struct FTetrahedronStructure
 	FVector CornerTop;
 
 	// Remove these and provide ways to calculate them instead
-	FRuntimeMeshVertexSimple FrontFaceLeftPoint;
-	FRuntimeMeshVertexSimple FrontFaceRightPoint;
-	FRuntimeMeshVertexSimple FrontFaceTopPoint;
+	FVector FrontFaceLeftPoint;
+	FVector2D FrontFaceLeftPointUV;
+	FVector FrontFaceRightPoint;
+	FVector2D FrontFaceRightPointUV;
+	FVector FrontFaceTopPoint;
+	FVector2D FrontFaceTopPointUV;
 
-	FRuntimeMeshVertexSimple LeftFaceLeftPoint;
-	FRuntimeMeshVertexSimple LeftFaceRightPoint;
-	FRuntimeMeshVertexSimple LeftFaceTopPoint;
+	FVector LeftFaceLeftPoint;
+	FVector2D LeftFaceLeftPointUV;
+	FVector LeftFaceRightPoint;
+	FVector2D LeftFaceRightPointUV;
+	FVector LeftFaceTopPoint;
+	FVector2D LeftFaceTopPointUV;
 
-	FRuntimeMeshVertexSimple RightFaceLeftPoint;
-	FRuntimeMeshVertexSimple RightFaceRightPoint;
-	FRuntimeMeshVertexSimple RightFaceTopPoint;
+	FVector RightFaceLeftPoint;
+	FVector2D RightFaceLeftPointUV;
+	FVector RightFaceRightPoint;
+	FVector2D RightFaceRightPointUV;
+	FVector RightFaceTopPoint;
+	FVector2D RightFaceTopPointUV;
 
-	FRuntimeMeshVertexSimple BottomFaceLeftPoint;
-	FRuntimeMeshVertexSimple BottomFaceRightPoint;
-	FRuntimeMeshVertexSimple BottomFaceTopPoint;
+	FVector BottomFaceLeftPoint;
+	FVector2D BottomFaceLeftPointUV;
+	FVector BottomFaceRightPoint;
+	FVector2D BottomFaceRightPointUV;
+	FVector BottomFaceTopPoint;
+	FVector2D BottomFaceTopPointUV;
 
 	FVector FrontFaceNormal;
 	FVector LeftFaceNormal;
@@ -53,7 +65,7 @@ struct FTetrahedronStructure
 	{
 	}
 
-	FTetrahedronStructure(FVector InCornerBottomLeft, FVector InCornerBottomRight, FVector InCornerBottomMiddle, FVector InCornerTop)
+	FTetrahedronStructure(const FVector InCornerBottomLeft, const FVector InCornerBottomRight, const FVector InCornerBottomMiddle, const FVector InCornerTop)
 	{
 		CornerBottomLeft = InCornerBottomLeft;
 		CornerBottomRight = InCornerBottomRight;
@@ -61,58 +73,46 @@ struct FTetrahedronStructure
 		CornerTop = InCornerTop;
 
 		// Now setup each face
-		FrontFaceLeftPoint.Position = CornerBottomLeft;
-		FrontFaceLeftPoint.UV0 = FVector2D(0, 1);
-		FrontFaceRightPoint.Position = CornerBottomRight;
-		FrontFaceRightPoint.UV0 = FVector2D(1, 1);
-		FrontFaceTopPoint.Position = CornerTop;
-		FrontFaceTopPoint.UV0 = FVector2D(0.5f, 0);
+		FrontFaceLeftPoint = CornerBottomLeft;
+		FrontFaceLeftPointUV = FVector2D(0, 1);
+		FrontFaceRightPoint = CornerBottomRight;
+		FrontFaceRightPointUV = FVector2D(1, 1);
+		FrontFaceTopPoint = CornerTop;
+		FrontFaceTopPointUV = FVector2D(0.5f, 0);
 
-		FrontFaceNormal = FVector::CrossProduct(FrontFaceTopPoint.Position - FrontFaceLeftPoint.Position, FrontFaceRightPoint.Position - FrontFaceLeftPoint.Position).GetSafeNormal();
-		FrontFaceLeftPoint.Normal = FrontFaceNormal;
-		FrontFaceRightPoint.Normal = FrontFaceNormal;
-		FrontFaceTopPoint.Normal = FrontFaceNormal;
+		FrontFaceNormal = FVector::CrossProduct(FrontFaceTopPoint - FrontFaceLeftPoint, FrontFaceRightPoint - FrontFaceLeftPoint).GetSafeNormal();
 
-		LeftFaceLeftPoint.Position = CornerBottomMiddle;
-		LeftFaceLeftPoint.UV0 = FVector2D(0, 1);
-		LeftFaceRightPoint.Position = CornerBottomLeft;
-		LeftFaceRightPoint.UV0 = FVector2D(1, 1);
-		LeftFaceTopPoint.Position = CornerTop;
-		LeftFaceTopPoint.UV0 = FVector2D(0.5f, 0);
+		LeftFaceLeftPoint = CornerBottomMiddle;
+		LeftFaceLeftPointUV = FVector2D(0, 1);
+		LeftFaceRightPoint = CornerBottomLeft;
+		LeftFaceRightPointUV = FVector2D(1, 1);
+		LeftFaceTopPoint = CornerTop;
+		LeftFaceTopPointUV = FVector2D(0.5f, 0);
 		
-		LeftFaceNormal = FVector::CrossProduct(LeftFaceTopPoint.Position - LeftFaceLeftPoint.Position, LeftFaceRightPoint.Position - LeftFaceLeftPoint.Position).GetSafeNormal();
-		LeftFaceLeftPoint.Normal = LeftFaceNormal;
-		LeftFaceRightPoint.Normal = LeftFaceNormal;
-		LeftFaceTopPoint.Normal = LeftFaceNormal;
+		LeftFaceNormal = FVector::CrossProduct(LeftFaceTopPoint - LeftFaceLeftPoint, LeftFaceRightPoint - LeftFaceLeftPoint).GetSafeNormal();
 
-		RightFaceLeftPoint.Position = CornerBottomRight;
-		RightFaceLeftPoint.UV0 = FVector2D(0, 1);
-		RightFaceRightPoint.Position = CornerBottomMiddle;
-		RightFaceRightPoint.UV0 = FVector2D(1, 1);
-		RightFaceTopPoint.Position = CornerTop;
-		RightFaceTopPoint.UV0 = FVector2D(0.5f, 0);
+		RightFaceLeftPoint = CornerBottomRight;
+		RightFaceLeftPointUV = FVector2D(0, 1);
+		RightFaceRightPoint = CornerBottomMiddle;
+		RightFaceRightPointUV = FVector2D(1, 1);
+		RightFaceTopPoint = CornerTop;
+		RightFaceTopPointUV = FVector2D(0.5f, 0);
 		
-		RightFaceNormal = FVector::CrossProduct(RightFaceTopPoint.Position - RightFaceLeftPoint.Position, RightFaceRightPoint.Position - RightFaceLeftPoint.Position).GetSafeNormal();
-		RightFaceLeftPoint.Normal = RightFaceNormal;
-		RightFaceRightPoint.Normal = RightFaceNormal;
-		RightFaceTopPoint.Normal = RightFaceNormal;
+		RightFaceNormal = FVector::CrossProduct(RightFaceTopPoint - RightFaceLeftPoint, RightFaceRightPoint - RightFaceLeftPoint).GetSafeNormal();
 
-		BottomFaceLeftPoint.Position = CornerBottomRight;
-		BottomFaceLeftPoint.UV0 = FVector2D(0, 1);
-		BottomFaceRightPoint.Position = CornerBottomLeft;
-		BottomFaceRightPoint.UV0 = FVector2D(1, 1);
-		BottomFaceTopPoint.Position = CornerBottomMiddle;
-		BottomFaceTopPoint.UV0 = FVector2D(0.5f, 0);
+		BottomFaceLeftPoint = CornerBottomRight;
+		BottomFaceLeftPointUV = FVector2D(0, 1);
+		BottomFaceRightPoint = CornerBottomLeft;
+		BottomFaceRightPointUV = FVector2D(1, 1);
+		BottomFaceTopPoint = CornerBottomMiddle;
+		BottomFaceTopPointUV = FVector2D(0.5f, 0);
 		
-		BottomFaceNormal = FVector::CrossProduct(BottomFaceTopPoint.Position - BottomFaceLeftPoint.Position, BottomFaceRightPoint.Position - BottomFaceLeftPoint.Position).GetSafeNormal();
-		RightFaceLeftPoint.Normal = RightFaceNormal;
-		RightFaceRightPoint.Normal = RightFaceNormal;
-		RightFaceTopPoint.Normal = RightFaceNormal;
+		BottomFaceNormal = FVector::CrossProduct(BottomFaceTopPoint - BottomFaceLeftPoint, BottomFaceRightPoint - BottomFaceLeftPoint).GetSafeNormal();
 	}
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ASierpinskiTetrahedron : public AActor
+class PROCEDURALMESHES_API ASierpinskiTetrahedron : public ARuntimeMeshActor
 {
 	GENERATED_BODY()
 	
@@ -128,35 +128,31 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
 
-	virtual void PostLoad() override;
-	virtual void PostActorCreated() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
 
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
-	
 protected:
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Default)
-	USceneComponent* RootNode;
-
-	UPROPERTY()
-	URuntimeMeshComponent* MeshComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	URuntimeMeshProviderStatic* StaticProvider;
 
 private:
 
 	void GenerateMesh();
-	void GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, int32& VertexIndex, int32& TriangleIndex);
-	void AddPolygon(const FRuntimeMeshVertexSimple& Point1, const FRuntimeMeshVertexSimple& Point2, const FRuntimeMeshVertexSimple& Point3, FVector FaceNormal, TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, int32& VertexIndex, int32& TriangleIndex);
-	FVector2D GetUVForSide(FVector Point, ETetrahedronSide Side);
+	
+	void GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const;
+	static void AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
+	static void AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, FVector const FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
+	void SetTetrahedronUV(FTetrahedronStructure& Tetrahedron) const;
+	FVector2D GetUVForSide(const FVector Point, const ETetrahedronSide Side) const;
 
 	FTetrahedronStructure FirstTetrahedron;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
-	TArray<FRuntimeMeshVertexSimple> Vertices;
+	TArray<FVector> Positions;
 	TArray<int32> Triangles;
+	TArray<FVector> Normals;
+	TArray<FRuntimeMeshTangent> Tangents;
+	TArray<FVector2D> TexCoords;
 
 	// Pre-calculated vectors that define a quad for each tetrahedron side
 	void PrecalculateTetrahedronSideQuads();
