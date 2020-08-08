@@ -71,7 +71,7 @@ void ASimpleCylinderActor::GenerateMesh()
 
 	const TArray<FColor> EmptyColors{};
 	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, true);
-	StaticProvider->SetupMaterialSlot(0, TEXT("CubeMaterial"), Material);
+	StaticProvider->SetupMaterialSlot(0, TEXT("CylinderMaterial"), Material);
 }
 
 void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, float InHeight, float InWidth, int32 InCrossSectionCount, bool bInCapEnds, bool bInDoubleSided, bool bInSmoothNormals/* = true*/)
@@ -83,21 +83,21 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 
 	// -------------------------------------------------------
 	// Make a cylinder section
-	const float AngleBetweenQuads = (2.0f / (float)(InCrossSectionCount)) * PI;
-	const float VMapPerQuad = 1.0f / (float)InCrossSectionCount;
+	const float AngleBetweenQuads = (2.0f / static_cast<float>(InCrossSectionCount)) * PI;
+	const float VMapPerQuad = 1.0f / static_cast<float>(InCrossSectionCount);
 	FVector Offset = FVector(0, 0, InHeight);
 
 	// Start by building up vertices that make up the cylinder sides
 	for (int32 QuadIndex = 0; QuadIndex < InCrossSectionCount; QuadIndex++)
 	{
-		float Angle = (float)QuadIndex * AngleBetweenQuads;
-		float NextAngle = (float)(QuadIndex + 1) * AngleBetweenQuads;
+		float Angle = static_cast<float>(QuadIndex) * AngleBetweenQuads;
+		float NextAngle = static_cast<float>(QuadIndex + 1) * AngleBetweenQuads;
 
 		// Set up the vertices
-		FVector p0 = FVector(FMath::Cos(Angle) * InWidth, FMath::Sin(Angle) * InWidth, 0.f);
-		FVector p1 = FVector(FMath::Cos(NextAngle) * InWidth, FMath::Sin(NextAngle) * InWidth, 0.f);
-		FVector p2 = p1 + Offset;
-		FVector p3 = p0 + Offset;
+		FVector P0 = FVector(FMath::Cos(Angle) * InWidth, FMath::Sin(Angle) * InWidth, 0.f);
+		FVector P1 = FVector(FMath::Cos(NextAngle) * InWidth, FMath::Sin(NextAngle) * InWidth, 0.f);
+		FVector P2 = P1 + Offset;
+		FVector P3 = P0 + Offset;
 
 		// Set up the quad triangles
 		int32 VertIndex1 = VertexIndex++;
@@ -105,10 +105,10 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		int32 VertIndex3 = VertexIndex++;
 		int32 VertIndex4 = VertexIndex++;
 
-		InVertices[VertIndex1] = p0;
-		InVertices[VertIndex2] = p1;
-		InVertices[VertIndex3] = p2;
-		InVertices[VertIndex4] = p3;
+		InVertices[VertIndex1] = P0;
+		InVertices[VertIndex2] = P1;
+		InVertices[VertIndex3] = P2;
+		InVertices[VertIndex4] = P3;
 
 		// Now create two triangles from those four vertices
 		// The order of these (clockwise/counter-clockwise) dictates which way the normal will face. 
@@ -134,19 +134,19 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			// To smooth normals we give the vertices different values than the polygon they belong to.
 			// GPUs know how to interpolate between those.
 			// I do this here as an average between normals of two adjacent polygons
-			float NextNextAngle = (float)(QuadIndex + 2) * AngleBetweenQuads;
-			FVector p4 = FVector(FMath::Cos(NextNextAngle) * InWidth, FMath::Sin(NextNextAngle) * InWidth, 0.f);
+			float NextNextAngle = static_cast<float>(QuadIndex + 2) * AngleBetweenQuads;
+			FVector P4 = FVector(FMath::Cos(NextNextAngle) * InWidth, FMath::Sin(NextNextAngle) * InWidth, 0.f);
 
 			// p1 to p4 to p2
-			FVector NormalNext = FVector::CrossProduct(p1 - p2, p4 - p2).GetSafeNormal();
+			FVector NormalNext = FVector::CrossProduct(P1 - P2, P4 - P2).GetSafeNormal();
 			FVector AverageNormalRight = (NormalCurrent + NormalNext) / 2;
 			AverageNormalRight = AverageNormalRight.GetSafeNormal();
 
-			float PreviousAngle = (float)(QuadIndex - 1) * AngleBetweenQuads;
-			FVector pMinus1 = FVector(FMath::Cos(PreviousAngle) * InWidth, FMath::Sin(PreviousAngle) * InWidth, 0.f);
+			float PreviousAngle = static_cast<float>(QuadIndex - 1) * AngleBetweenQuads;
+			FVector PMinus1 = FVector(FMath::Cos(PreviousAngle) * InWidth, FMath::Sin(PreviousAngle) * InWidth, 0.f);
 
 			// p0 to p3 to pMinus1
-			FVector NormalPrevious = FVector::CrossProduct(p0 - pMinus1, p3 - pMinus1).GetSafeNormal();
+			FVector NormalPrevious = FVector::CrossProduct(P0 - PMinus1, P3 - PMinus1).GetSafeNormal();
 			FVector AverageNormalLeft = (NormalCurrent + NormalPrevious) / 2;
 			AverageNormalLeft = AverageNormalLeft.GetSafeNormal();
 
@@ -162,7 +162,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		}
 
 		// Tangents (perpendicular to the surface)
-		FVector SurfaceTangent = p0 - p1;
+		FVector SurfaceTangent = P0 - P1;
 		SurfaceTangent = SurfaceTangent.GetSafeNormal();
 		InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangent;
 
@@ -175,10 +175,10 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			VertIndex3 = VertexIndex++;
 			VertIndex4 = VertexIndex++;
 
-			InVertices[VertIndex1] = p0;
-			InVertices[VertIndex2] = p1;
-			InVertices[VertIndex3] = p2;
-			InVertices[VertIndex4] = p3;
+			InVertices[VertIndex1] = P0;
+			InVertices[VertIndex2] = P1;
+			InVertices[VertIndex3] = P2;
+			InVertices[VertIndex4] = P3;
 
 			// Reverse the poly order to face them the other way
 			InTriangles[TriangleIndex++] = VertIndex4;
@@ -199,7 +199,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = InNormals[VertIndex4] = NormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			FVector SurfaceTangentDbl = p0 - p1;
+			FVector SurfaceTangentDbl = P0 - P1;
 			SurfaceTangentDbl = SurfaceTangentDbl.GetSafeNormal();
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangentDbl;
 		}
@@ -210,16 +210,16 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		if (QuadIndex != 0 && QuadIndex != InCrossSectionCount - 1 && bInCapEnds)
 		{
 			// Bottom cap
-			FVector capVertex0 = FVector(FMath::Cos(0) * InWidth, FMath::Sin(0) * InWidth, 0.f);
-			FVector capVertex1 = FVector(FMath::Cos(Angle) * InWidth, FMath::Sin(Angle) * InWidth, 0.f);
-			FVector capVertex2 = FVector(FMath::Cos(NextAngle) * InWidth, FMath::Sin(NextAngle) * InWidth, 0.f);
+			FVector CapVertex0 = FVector(FMath::Cos(0) * InWidth, FMath::Sin(0) * InWidth, 0.f);
+			FVector CapVertex1 = FVector(FMath::Cos(Angle) * InWidth, FMath::Sin(Angle) * InWidth, 0.f);
+			FVector CapVertex2 = FVector(FMath::Cos(NextAngle) * InWidth, FMath::Sin(NextAngle) * InWidth, 0.f);
 
 			VertIndex1 = VertexIndex++;
 			VertIndex2 = VertexIndex++;
 			VertIndex3 = VertexIndex++;
-			InVertices[VertIndex1] = capVertex0;
-			InVertices[VertIndex2] = capVertex1;
-			InVertices[VertIndex3] = capVertex2;
+			InVertices[VertIndex1] = CapVertex0;
+			InVertices[VertIndex2] = CapVertex1;
+			InVertices[VertIndex3] = CapVertex2;
 
 			InTriangles[TriangleIndex++] = VertIndex1;
 			InTriangles[TriangleIndex++] = VertIndex2;
@@ -233,21 +233,21 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = CapNormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			FVector SurfaceTangentCap = p0 - p1;
+			FVector SurfaceTangentCap = P0 - P1;
 			SurfaceTangentCap = SurfaceTangentCap.GetSafeNormal();
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCap;
 
 			// Top cap
-			capVertex0 = capVertex0 + Offset;
-			capVertex1 = capVertex1 + Offset;
-			capVertex2 = capVertex2 + Offset;
+			CapVertex0 = CapVertex0 + Offset;
+			CapVertex1 = CapVertex1 + Offset;
+			CapVertex2 = CapVertex2 + Offset;
 
 			VertIndex1 = VertexIndex++;
 			VertIndex2 = VertexIndex++;
 			VertIndex3 = VertexIndex++;
-			InVertices[VertIndex1] = capVertex0;
-			InVertices[VertIndex2] = capVertex1;
-			InVertices[VertIndex3] = capVertex2;
+			InVertices[VertIndex1] = CapVertex0;
+			InVertices[VertIndex2] = CapVertex1;
+			InVertices[VertIndex3] = CapVertex2;
 
 			InTriangles[TriangleIndex++] = VertIndex3;
 			InTriangles[TriangleIndex++] = VertIndex2;
@@ -261,7 +261,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = CapNormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			SurfaceTangentCap = p0 - p1;
+			SurfaceTangentCap = P0 - P1;
 			SurfaceTangentCap = SurfaceTangentCap.GetSafeNormal();
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCap;
 		}
