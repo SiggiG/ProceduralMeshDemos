@@ -77,7 +77,7 @@ void AHeightFieldNoiseActor::GenerateMesh()
 	GenerateGrid(Positions, Triangles, Normals, Tangents, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 
 	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, true);
+	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
 	StaticProvider->SetupMaterialSlot(0, TEXT("CylinderMaterial"), Material);
 }
 
@@ -137,8 +137,7 @@ void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<in
 			InNormals[BottomLeftIndex] = InNormals[BottomRightIndex] = InNormals[TopRightIndex] = InNormals[TopLeftIndex] = NormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			FVector SurfaceTangent = PBottomLeft - PBottomRight;
-			SurfaceTangent = SurfaceTangent.GetSafeNormal();
+			const FVector SurfaceTangent = (PBottomLeft - PBottomRight).GetSafeNormal();
 			InTangents[BottomLeftIndex] = InTangents[BottomRightIndex] = InTangents[TopRightIndex] = InTangents[TopLeftIndex] = SurfaceTangent;
 		}
 	}

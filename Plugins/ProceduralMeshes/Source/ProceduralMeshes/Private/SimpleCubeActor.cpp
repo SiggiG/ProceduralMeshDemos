@@ -49,7 +49,7 @@ void ASimpleCubeActor::GenerateMesh()
 	GenerateCube(Positions, Triangles, Normals, Tangents, TexCoords, Size);
 
 	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, true);
+	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
 	StaticProvider->SetupMaterialSlot(0, TEXT("CubeMaterial"), Material);
 }
 

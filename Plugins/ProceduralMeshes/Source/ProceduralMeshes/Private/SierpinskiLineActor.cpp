@@ -184,8 +184,7 @@ void ASierpinskiLineActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 	const FVector Offset = EndPoint - StartPoint;
 
 	// Find angle between vectors
-	FVector LineDirection = (StartPoint - EndPoint);
-	LineDirection.Normalize();
+	const FVector LineDirection = (StartPoint - EndPoint).GetSafeNormal();
 	const FVector RotationAngle = LineDirection.Rotation().Add(90.f, 0.f, 0.f).Euler();
 
 	// Start by building up vertices that make up the cylinder sides

@@ -46,7 +46,7 @@ protected:
 private:
 
 	void GenerateMesh();
-	static void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, float InHeight, float InWidth, int32 InCrossSectionCount, bool bInCapEnds = false, bool bInDoubleSided = false, bool bInSmoothNormals = true);
+	static void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds = false, const bool bInDoubleSided = false, const bool bInSmoothNormals = true);
 
 	// Mesh buffers
 	void SetupMeshBuffers();

@@ -70,7 +70,7 @@ void ABranchingLinesActor::GenerateMesh()
 	}
 
 	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, true);
+	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
 	StaticProvider->SetupMaterialSlot(0, TEXT("BranchingLinesMaterial"), Material);
 }
 
@@ -133,8 +133,7 @@ void ABranchingLinesActor::CreateSegments()
 			FVector Midpoint = (EachSegment.End + EachSegment.Start) / 2;
 
 			// Offset the midpoint by a random number along the normal
-			FVector Normal = FVector::CrossProduct(EachSegment.End - EachSegment.Start, OffsetDirections[RngStream.RandRange(0, 1)]);
-			Normal.Normalize();
+			const FVector Normal = FVector::CrossProduct(EachSegment.End - EachSegment.Start, OffsetDirections[RngStream.RandRange(0, 1)]).GetSafeNormal();
 			Midpoint += Normal * RngStream.RandRange(-CurrentBranchOffset, CurrentBranchOffset);
 
 			 // Create two new segments
@@ -145,7 +144,7 @@ void ABranchingLinesActor::CreateSegments()
 			if (RngStream.FRand() > (1 - ChangeOfFork))
 			{
 				// TODO Normalize the direction vector and calculate a new total length and then subdiv that for X generations
-				FVector Direction = Midpoint - EachSegment.Start;
+				const FVector Direction = Midpoint - EachSegment.Start;
 				const FVector SplitEnd = (Direction * RngStream.FRandRange(ForkLengthMin, ForkLengthMax)).RotateAngleAxis(RngStream.FRandRange(ForkRotationMin, ForkRotationMax), OffsetDirections[RngStream.RandRange(0, 1)]) + Midpoint;
 				NewGen.Add(FBranchSegment(Midpoint, SplitEnd, EachSegment.Width * WidthReductionOnFork, EachSegment.ForkGeneration + 1));
 			}
@@ -159,19 +158,18 @@ void ABranchingLinesActor::CreateSegments()
 	}
 }
 
-void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector StartPoint, FVector EndPoint, float InWidth, int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, bool bInSmoothNormals/* = true*/)
+void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals/* = true*/)
 {
 	// Make a cylinder section
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(InCrossSectionCount)) * PI;
 	const float UMapPerQuad = 1.0f / static_cast<float>(InCrossSectionCount);
 
-	FVector StartOffset = StartPoint - FVector(0, 0, 0);
-	FVector Offset = EndPoint - StartPoint;
+	const FVector StartOffset = StartPoint - FVector(0, 0, 0);
+	const FVector Offset = EndPoint - StartPoint;
 
 	// Find angle between vectors
-	FVector LineDirection = (StartPoint - EndPoint);
-	LineDirection.Normalize();
-	FVector RotationAngle = LineDirection.Rotation().Add(90.f, 0.f, 0.f).Euler();
+	const FVector LineDirection = (StartPoint - EndPoint).GetSafeNormal();
+	const FVector RotationAngle = LineDirection.Rotation().Add(90.f, 0.f, 0.f).Euler();
 
 	// Start by building up vertices that make up the cylinder sides
 	for (int32 QuadIndex = 0; QuadIndex < InCrossSectionCount; QuadIndex++)
@@ -184,14 +182,14 @@ void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		P0 = RotatePointAroundPivot(P0, StartPoint, RotationAngle);
 		FVector P1 = CachedCrossSectionPoints[QuadIndex + 1] * InWidth + StartOffset;
 		P1 = RotatePointAroundPivot(P1, StartPoint, RotationAngle);
-		FVector P2 = P1 + Offset;
-		FVector P3 = P0 + Offset;
+		const FVector P2 = P1 + Offset;
+		const FVector P3 = P0 + Offset;
 
 		// Set up the quad triangles
-		int32 VertIndex1 = InVertexIndex++;
-		int32 VertIndex2 = InVertexIndex++;
-		int32 VertIndex3 = InVertexIndex++;
-		int32 VertIndex4 = InVertexIndex++;
+		const int32 VertIndex1 = InVertexIndex++;
+		const int32 VertIndex2 = InVertexIndex++;
+		const int32 VertIndex3 = InVertexIndex++;
+		const int32 VertIndex4 = InVertexIndex++;
 
 		InVertices[VertIndex1] = P0;
 		InVertices[VertIndex2] = P1;
@@ -215,7 +213,7 @@ void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		InTexCoords[VertIndex4] = FVector2D(1.0f - (UMapPerQuad * QuadIndex), 0.0f);
 
 		// Normals
-		FVector NormalCurrent = FVector::CrossProduct(InVertices[VertIndex1] - InVertices[VertIndex3], InVertices[VertIndex2] - InVertices[VertIndex3]).GetSafeNormal();
+		const FVector NormalCurrent = FVector::CrossProduct(InVertices[VertIndex1] - InVertices[VertIndex3], InVertices[VertIndex2] - InVertices[VertIndex3]).GetSafeNormal();
 
 		if (bInSmoothNormals)
 		{
@@ -227,18 +225,16 @@ void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			P4 = RotatePointAroundPivot(P4, StartPoint, RotationAngle);
 
 			// p1 to p4 to p2
-			FVector NormalNext = FVector::CrossProduct(P1 - P2, P4 - P2).GetSafeNormal();
-			FVector AverageNormalRight = (NormalCurrent + NormalNext) / 2;
-			AverageNormalRight = AverageNormalRight.GetSafeNormal();
+			const FVector NormalNext = FVector::CrossProduct(P1 - P2, P4 - P2).GetSafeNormal();
+			const FVector AverageNormalRight = ((NormalCurrent + NormalNext) / 2).GetSafeNormal();
 
-			float PreviousAngle = static_cast<float>(QuadIndex - 1) * AngleBetweenQuads;
+			const float PreviousAngle = static_cast<float>(QuadIndex - 1) * AngleBetweenQuads;
 			FVector PMinus1 = FVector(FMath::Cos(PreviousAngle) * InWidth, FMath::Sin(PreviousAngle) * InWidth, 0.f) + StartOffset;
 			PMinus1 = RotatePointAroundPivot(PMinus1, StartPoint, RotationAngle);
 
 			// p0 to p3 to pMinus1
-			FVector NormalPrevious = FVector::CrossProduct(P0 - PMinus1, P3 - PMinus1).GetSafeNormal();
-			FVector AverageNormalLeft = (NormalCurrent + NormalPrevious) / 2;
-			AverageNormalLeft = AverageNormalLeft.GetSafeNormal();
+			const FVector NormalPrevious = FVector::CrossProduct(P0 - PMinus1, P3 - PMinus1).GetSafeNormal();
+			const FVector AverageNormalLeft = ((NormalCurrent + NormalPrevious) / 2).GetSafeNormal();
 
 			InNormals[VertIndex1] = AverageNormalLeft;
 			InNormals[VertIndex2] = AverageNormalRight;
@@ -252,8 +248,7 @@ void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		}
 
 		// Tangents (perpendicular to the surface)
-		FVector SurfaceTangent = P0 - P1;
-		SurfaceTangent = SurfaceTangent.GetSafeNormal();
+		const FVector SurfaceTangent = (P0 - P1).GetSafeNormal();
 		InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangent;
 	}
 }
