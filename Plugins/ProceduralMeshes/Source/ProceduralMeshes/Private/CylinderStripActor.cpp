@@ -13,6 +13,7 @@ ACylinderStripActor::ACylinderStripActor()
 
 void ACylinderStripActor::OnConstruction(const FTransform& Transform)
 {
+	Super::OnConstruction(Transform);
 	PreCacheCrossSection();
 	GenerateMesh();
 }

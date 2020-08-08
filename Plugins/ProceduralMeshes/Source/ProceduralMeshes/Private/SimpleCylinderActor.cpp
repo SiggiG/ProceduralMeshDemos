@@ -13,6 +13,7 @@ ASimpleCylinderActor::ASimpleCylinderActor()
 
 void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
 {
+	Super::OnConstruction(Transform);
 	GenerateMesh();
 }
 
