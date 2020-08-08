@@ -63,7 +63,6 @@ void ASimpleCylinderActor::GenerateMesh()
 	
 	if (Height <= 0)
 	{
-		
 		return;
 	}
 

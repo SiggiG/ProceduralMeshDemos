@@ -50,7 +50,6 @@ private:
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
 	TArray<FVector> Positions;
 	TArray<int32> Triangles;
 	TArray<FVector> Normals;
