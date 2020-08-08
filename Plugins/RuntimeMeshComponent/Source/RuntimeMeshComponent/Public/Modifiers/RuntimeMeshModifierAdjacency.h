@@ -1,25 +1,51 @@
-// Copyright 2016-2018 Chris Conway (Koderz). All Rights Reserved.
+// Copyright 2016-2020 Chris Conway (Koderz). All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RuntimeMeshBuilder.h"
-
+#include "RuntimeMeshModifier.h"
+#include "RuntimeMeshModifierAdjacency.generated.h"
 
 /**
-*
-*/
-class FTessellationUtilities
+ * 
+ */
+UCLASS()
+class RUNTIMEMESHCOMPONENT_API URuntimeMeshModifierAdjacency : public URuntimeMeshModifier
 {
+	GENERATED_BODY()
+	
+
 public:
-	static void CalculateTessellationIndices(int32 NumVertices, int32 NumIndices,
-		TFunction<FVector(int32)> PositionAccessor, TFunction<FVector2D(int32)> UVAccessor, TFunction<int32(int32)> IndexAccessor,
-		TFunction<void(int32)> OutIndicesSizeSetter, TFunction<int32()> OutIndicesSizeGetter, TFunction<void(int32, int32)> OutIndicesWriter, TFunction<int32(int32)> OutIndicesReader);
+	URuntimeMeshModifierAdjacency();
+
+	virtual void ApplyToMesh_Implementation(FRuntimeMeshRenderableMeshData& MeshData) override;
 
 
-
+	/*
+	*	Calculates the tessellation indices for the supplied mesh data, setting the result back to the tessellation triangles in the mesh data.
+	*/
+	UFUNCTION(BlueprintCallable, Category="RuntimeMesh|Modifiers|Adjacency")
+	static void CalculateTessellationIndices(FRuntimeMeshRenderableMeshData& MeshData);
 
 private:
+	struct Vertex;
+	struct Edge;
+	struct Corner;
+	struct Triangle;
+
+	static FORCEINLINE uint32 HashValue(const FVector& Vec)
+	{
+		return 31337 * GetTypeHash(Vec.X) + 13 * GetTypeHash(Vec.Y) + 3 * GetTypeHash(Vec.Z);
+	}
+
+	static FORCEINLINE uint32 HashValue(const Vertex& Vert)
+	{
+		return HashValue(Vert.Position);
+	}
+
+	using EdgeDictionary = TMap<Edge, Edge>;
+	using PositionDictionary = TMap<FVector, Corner>;
+
 	struct Vertex
 	{
 		FVector Position;
@@ -41,16 +67,6 @@ private:
 				|| Position.Z < Other.Position.Z;
 		}
 	};
-
-	static FORCEINLINE uint32 HashValue(const FVector& Vec)
-	{
-		return 31337 * GetTypeHash(Vec.X) + 13 * GetTypeHash(Vec.Y) + 3 * GetTypeHash(Vec.Z);
-	}
-
-	static FORCEINLINE uint32 HashValue(const Vertex& Vert)
-	{
-		return HashValue(Vert.Position);
-	}
 
 	struct Edge
 	{
@@ -140,7 +156,7 @@ private:
 		{ }
 	};
 
-	class Triangle
+	struct Triangle
 	{
 		Edge Edge0;
 		Edge Edge1;
@@ -168,18 +184,10 @@ private:
 		}
 
 	};
-	using EdgeDictionary = TMap<Edge, Edge>;
-	using PositionDictionary = TMap<FVector, Corner>;
 
 	static void AddIfLeastUV(PositionDictionary& PosDict, const Vertex& Vert, uint32 Index);
 
-	static void ReplacePlaceholderIndices(int32 NumVertices, int32 NumIndices,
-		TFunction<FVector(int32)> PositionAccessor, TFunction<FVector2D(int32)> UVAccessor, TFunction<int32(int32)> IndexAccessor,
-		TFunction<void(int32)> OutIndicesSizeSetter, TFunction<int32()> OutIndicesSizeGetter, TFunction<void(int32, int32)> OutIndicesWriter, TFunction<int32(int32)> OutIndicesReader,
-		EdgeDictionary& EdgeDict, PositionDictionary& PosDict);
+	static void ReplacePlaceholderIndices(FRuntimeMeshRenderableMeshData& MeshData, EdgeDictionary& EdgeDict, PositionDictionary& PosDict);
 
-	static void ExpandIB(int32 NumVertices, int32 NumIndices,
-		TFunction<FVector(int32)> PositionAccessor, TFunction<FVector2D(int32)> UVAccessor, TFunction<int32(int32)> IndexAccessor,
-		TFunction<void(int32)> OutIndicesSizeSetter, TFunction<int32()> OutIndicesSizeGetter, TFunction<void(int32, int32)> OutIndicesWriter, TFunction<int32(int32)> OutIndicesReader,
-		EdgeDictionary& OutEdgeDict, PositionDictionary& OutPosDict);
+	static void ExpandIB(FRuntimeMeshRenderableMeshData& MeshData, EdgeDictionary& OutEdgeDict, PositionDictionary& OutPosDict);
 };

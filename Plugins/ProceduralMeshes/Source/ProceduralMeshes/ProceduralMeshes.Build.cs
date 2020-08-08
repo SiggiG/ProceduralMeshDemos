@@ -6,26 +6,15 @@ public class ProceduralMeshes : ModuleRules
 {
 	public ProceduralMeshes(ReadOnlyTargetRules Target) : base(Target)
     {
-		
-		PublicIncludePaths.AddRange(new string[] { "ProceduralMeshes/Public" });
-
-        PrivateIncludePaths.AddRange(new string[] { "ProceduralMeshes/Private" });
-
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "RenderCore", "RHI", "RuntimeMeshComponent" });
-
-
+	    PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	    
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "RuntimeMeshComponent" });
+        
         PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"CoreUObject",
 				"Engine",
-// 				"Slate",
-// 				"SlateCore",
-				// ... add private dependencies that you statically link with here ...	
-			}
-			);
-		
-		
-		DynamicallyLoadedModuleNames.AddRange(new string[] {  });
+			});
     }
 }

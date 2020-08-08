@@ -1,5 +1,6 @@
-// Copyright 2016-2018 Chris Conway (Koderz). All Rights Reserved.
+// Copyright 2016-2020 Chris Conway (Koderz). All Rights Reserved.
 
+using System.IO;
 using UnrealBuildTool;
 
 public class RuntimeMeshComponentEditor : ModuleRules
@@ -7,22 +8,6 @@ public class RuntimeMeshComponentEditor : ModuleRules
     public RuntimeMeshComponentEditor(ReadOnlyTargetRules rules) : base(rules)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
-        // HORU: this was throwing warnings
-        //     PublicIncludePaths.AddRange(
-        //         new string[] {
-        //             "RuntimeMeshComponentEditor/Public"
-        //	// ... add public include paths required here ...
-        //}
-        //         );
-
-        // HORU: this was throwing warnings
-        //     PrivateIncludePaths.AddRange(
-        //         new string[] {
-        //             "RuntimeMeshComponentEditor/Private",
-        //	// ... add other private include paths required here ...
-        //}
-        //         );
 
 
         PublicDependencyModuleNames.AddRange(
