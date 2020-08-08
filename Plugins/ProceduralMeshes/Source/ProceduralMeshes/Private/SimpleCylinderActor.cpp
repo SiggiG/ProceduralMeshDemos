@@ -33,13 +33,13 @@ void ASimpleCylinderActor::SetupMeshBuffers()
 	{
 		// Each cap adds as many verts as there are verts in a circle
 		// 2x Number of vertices x3
-		VertexCount += 2 * (RadialSegmentCount - 1) * 3;
-		TriangleCount += 2 * (RadialSegmentCount - 1) * 3;
+		VertexCount += 2 * (RadialSegmentCount - 2) * 3;
+		TriangleCount += 2 * (RadialSegmentCount - 2) * 3;
 	}
 
 	if (VertexCount != Positions.Num())
 	{
-		Positions.Empty();  // Can I use Reset(VertexCount) here?
+		Positions.Empty();
 		Positions.AddUninitialized(VertexCount);
 		Normals.Empty();
 		Normals.AddUninitialized(VertexCount);
@@ -73,8 +73,6 @@ void ASimpleCylinderActor::GenerateMesh()
 	const TArray<FColor> EmptyColors{};
 	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, true);
 	StaticProvider->SetupMaterialSlot(0, TEXT("CubeMaterial"), Material);
-	//auto Bounds = StaticProvider->GetSectionBounds(0,0);
-	//UE_LOG(LogTemp, Warning, TEXT("!! ASimpleCylinderActor::GenerateMesh() Bounds=%s"), *Bounds.ToString() );
 }
 
 void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, float InHeight, float InWidth, int32 InCrossSectionCount, bool bInCapEnds, bool bInDoubleSided, bool bInSmoothNormals/* = true*/)
