@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "GameFramework/Actor.h"
-#include "RuntimeMeshComponent.h"
+#include "CoreMinimal.h"
+#include "RuntimeMeshActor.h"
 #include "HeightFieldNoiseActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API AHeightFieldNoiseActor : public AActor
+class PROCEDURALMESHES_API AHeightFieldNoiseActor : public ARuntimeMeshActor
 {
 	GENERATED_BODY()
 
@@ -31,25 +31,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
 
-	virtual void PostLoad() override;
-	virtual void PostActorCreated() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Default)
-	USceneComponent* RootNode;
-
-	UPROPERTY()
-	URuntimeMeshComponent* MeshComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	URuntimeMeshProviderStatic* StaticProvider;
 
 private:
 	void GenerateMesh();
 	void GeneratePoints();
-	void GenerateGrid(TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, FVector2D InSize, int32 InLengthSections, int32 InWidthSections, const TArray<float>& InHeightValues);
+	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector2D InSize, int32 InLengthSections, int32 InWidthSections, const TArray<float>& InHeightValues);
 
 	UPROPERTY(Transient)
 	FRandomStream RngStream;
@@ -58,7 +49,9 @@ private:
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
-	TArray<FRuntimeMeshVertexSimple> Vertices;
+	TArray<FVector> Positions;
 	TArray<int32> Triangles;
+	TArray<FVector> Normals;
+	TArray<FRuntimeMeshTangent> Tangents;
+	TArray<FVector2D> TexCoords;
 };
