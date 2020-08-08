@@ -19,31 +19,40 @@ void ASimpleCubeActor::OnConstruction(const FTransform& Transform)
 void ASimpleCubeActor::SetupMeshBuffers()
 {
 	const int32 VertexCount = 6 * 4; // 6 sides on a cube, 4 verts each
-	Positions.AddUninitialized(VertexCount);
-	Triangles.AddUninitialized(6 * 2 * 3); // 2x triangles per cube side, 3 verts each
-	Normals.AddUninitialized(VertexCount);
-	Tangents.AddUninitialized(VertexCount);
-	TexCoords.AddUninitialized(VertexCount);
+	const int32 TriangleCount = 6 * 2 * 3; // 2x triangles per cube side, 3 verts each
+
+	if (VertexCount != Positions.Num())
+	{
+		Positions.Empty();
+		Positions.AddUninitialized(VertexCount);
+		Normals.Empty();
+		Normals.AddUninitialized(VertexCount);
+		Tangents.Empty();
+		Tangents.AddUninitialized(VertexCount);
+		TexCoords.Empty();
+		TexCoords.AddUninitialized(VertexCount);
+	}
+
+	if (TriangleCount != Triangles.Num())
+	{
+		Triangles.Empty();
+		Triangles.AddUninitialized(TriangleCount);
+	}
 }
 
 void ASimpleCubeActor::GenerateMesh()
 {
-	// The number of vertices or polygons wont change at runtime, so we'll just allocate the arrays once
-	if (!bHaveBuffersBeenInitialized)
-	{
-		SetupMeshBuffers();
-		bHaveBuffersBeenInitialized = true;
-	}
-
 	GetRuntimeMeshComponent()->Initialize(StaticProvider);
+	StaticProvider->ClearSection(0, 0);
+	SetupMeshBuffers();
 	GenerateCube(Positions, Triangles, Normals, Tangents, TexCoords, Size);
 
-	TArray<FColor> EmptyColors{};
+	const TArray<FColor> EmptyColors{};
 	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, true);
 	StaticProvider->SetupMaterialSlot(0, TEXT("CubeMaterial"), Material);
 }
 
-void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector InSize)
+void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector InSize)
 {
 	// NOTE: Unreal uses an upper-left origin UV
 	// NOTE: This sample uses a simple UV mapping scheme where each face is the same
@@ -56,14 +65,14 @@ void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& 
 	const float OffsetZ = InSize.Z / 2.0f;
 
 	// Define the 8 corners of the cube
-	const FVector p0 = FVector(OffsetX,  OffsetY, -OffsetZ);
-	const FVector p1 = FVector(OffsetX, -OffsetY, -OffsetZ);
-	const FVector p2 = FVector(OffsetX, -OffsetY,  OffsetZ);
-	const FVector p3 = FVector(OffsetX,  OffsetY,  OffsetZ);
-	const FVector p4 = FVector(-OffsetX, OffsetY, -OffsetZ);
-	const FVector p5 = FVector(-OffsetX, -OffsetY, -OffsetZ);
-	const FVector p6 = FVector(-OffsetX, -OffsetY, OffsetZ);
-	const FVector p7 = FVector(-OffsetX, OffsetY, OffsetZ);
+	const FVector P0 = FVector(OffsetX,  OffsetY, -OffsetZ);
+	const FVector P1 = FVector(OffsetX, -OffsetY, -OffsetZ);
+	const FVector P2 = FVector(OffsetX, -OffsetY,  OffsetZ);
+	const FVector P3 = FVector(OffsetX,  OffsetY,  OffsetZ);
+	const FVector P4 = FVector(-OffsetX, OffsetY, -OffsetZ);
+	const FVector P5 = FVector(-OffsetX, -OffsetY, -OffsetZ);
+	const FVector P6 = FVector(-OffsetX, -OffsetY, OffsetZ);
+	const FVector P7 = FVector(-OffsetX, OffsetY, OffsetZ);
 
 	// Now we create 6x faces, 4 vertices each
 	int32 VertexOffset = 0;
@@ -74,35 +83,35 @@ void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& 
  	// Front (+X) face: 0-1-2-3
 	Normal = FVector(1, 0, 0);
 	Tangent = FVector(0, 1, 0);
-	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, p0, p1, p2, p3, VertexOffset, TriangleOffset, Normal, Tangent);
+	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P0, P1, P2, P3, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Back (-X) face: 5-4-7-6
 	Normal = FVector(-1, 0, 0);
 	Tangent = FVector(0, -1, 0);
-	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, p5, p4, p7, p6, VertexOffset, TriangleOffset, Normal, Tangent);
+	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P5, P4, P7, P6, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Left (-Y) face: 1-5-6-2
 	Normal = FVector(0, -1, 0);
 	Tangent = FVector(1, 0, 0);
-	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, p1, p5, p6, p2, VertexOffset, TriangleOffset, Normal, Tangent);
+	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P1, P5, P6, P2, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Right (+Y) face: 4-0-3-7
 	Normal = FVector(0, 1, 0);
 	Tangent = FVector(-1, 0, 0);
-	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, p4, p0, p3, p7, VertexOffset, TriangleOffset, Normal, Tangent);
+	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P4, P0, P3, P7, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Top (+Z) face: 6-7-3-2
 	Normal = FVector(0, 0, 1);
 	Tangent = FVector(0, 1, 0);
-	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, p6, p7, p3, p2, VertexOffset, TriangleOffset, Normal, Tangent);
+	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P6, P7, P3, P2, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Bottom (-Z) face: 1-0-4-5
 	Normal = FVector(0, 0, -1);
 	Tangent = FVector(0, -1, 0);
-	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, p1, p0, p4, p5, VertexOffset, TriangleOffset, Normal, Tangent);
+	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P1, P0, P4, P5, VertexOffset, TriangleOffset, Normal, Tangent);
 }
 
-void ASimpleCubeActor::BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector BottomLeft, FVector BottomRight, FVector TopRight, FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, FVector Normal, FRuntimeMeshTangent Tangent)
+void ASimpleCubeActor::BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FRuntimeMeshTangent Tangent)
 {
 	const int32 Index1 = VertexOffset++;
 	const int32 Index2 = VertexOffset++;
@@ -122,7 +131,7 @@ void ASimpleCubeActor::BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InT
 	InTriangles[TriangleOffset++] = Index1;
 	InTriangles[TriangleOffset++] = Index3;
 	InTriangles[TriangleOffset++] = Index4;
-	// // On a cube side, all the vertex normals face the same way
+	// On a cube side, all the vertex normals face the same way
 	InNormals[Index1] = InNormals[Index2] = InNormals[Index3] = InNormals[Index4] = Normal;
 	InTangents[Index1] = InTangents[Index2] = InTangents[Index3] = InTangents[Index4] = Tangent;
 }
