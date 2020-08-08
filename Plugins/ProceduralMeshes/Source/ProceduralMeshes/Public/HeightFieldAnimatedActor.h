@@ -46,7 +46,7 @@ public:
 
 protected:
 	// TODO Create a new provider instead of using the static provider
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
 	URuntimeMeshProviderStatic* StaticProvider;
 
 	float CurrentAnimationFrameX = 0.0f;

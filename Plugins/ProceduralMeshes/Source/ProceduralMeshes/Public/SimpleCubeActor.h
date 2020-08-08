@@ -28,7 +28,7 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
 	URuntimeMeshProviderStatic* StaticProvider;
 
 private:
