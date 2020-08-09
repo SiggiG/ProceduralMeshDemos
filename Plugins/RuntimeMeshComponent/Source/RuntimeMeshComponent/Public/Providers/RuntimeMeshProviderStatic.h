@@ -337,6 +337,7 @@ public:
 	virtual void ClearSection(int32 LODIndex, int32 SectionId) override;
 	virtual void RemoveSection(int32 LODIndex, int32 SectionId) override;
 
+	void SetSerializeFlag(bool bIsStored);
 
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void BeginDestroy() override;
