@@ -3,7 +3,7 @@
 // Example heightfield grid animated with sine and cosine waves
 
 #include "HeightFieldAnimatedActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 AHeightFieldAnimatedActor::AHeightFieldAnimatedActor()
 {

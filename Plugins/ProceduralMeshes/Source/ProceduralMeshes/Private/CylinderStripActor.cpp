@@ -3,7 +3,7 @@
 // Example cylinder strip mesh
 
 #include "CylinderStripActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 ACylinderStripActor::ACylinderStripActor()
 {

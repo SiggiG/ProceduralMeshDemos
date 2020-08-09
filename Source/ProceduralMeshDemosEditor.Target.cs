@@ -8,7 +8,8 @@ public class ProceduralMeshDemosEditorTarget : TargetRules
 	public ProceduralMeshDemosEditorTarget(TargetInfo Target) : base(Target)
     {
 		Type = TargetType.Editor;
+		DefaultBuildSettings = BuildSettingsVersion.V2;
 
-        ExtraModuleNames.AddRange(new string[] { "ProceduralMeshDemos" });
+		ExtraModuleNames.AddRange(new string[] { "ProceduralMeshDemos" });
     }
 }

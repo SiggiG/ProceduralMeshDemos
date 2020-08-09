@@ -3,7 +3,7 @@
 // Example Sierpinski pyramid using cylinder lines
 
 #include "SierpinskiLineActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 ASierpinskiLineActor::ASierpinskiLineActor()
 {

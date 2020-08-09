@@ -3,7 +3,7 @@
 // Example branching lines using cylinder strips
 
 #include "BranchingLinesActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 ABranchingLinesActor::ABranchingLinesActor()
 {

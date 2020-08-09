@@ -3,7 +3,7 @@
 // Example cylinder mesh
 
 #include "SimpleCylinderActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 ASimpleCylinderActor::ASimpleCylinderActor()
 {

@@ -3,7 +3,7 @@
 // Example Sierpinski tetrahedron
 
 #include "SierpinskiTetrahedron.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 
 ASierpinskiTetrahedron::ASierpinskiTetrahedron()
