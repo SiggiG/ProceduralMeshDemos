@@ -3,7 +3,7 @@
 // Example heightfield generated with noise
 
 #include "HeightFieldNoiseActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 AHeightFieldNoiseActor::AHeightFieldNoiseActor()
 {

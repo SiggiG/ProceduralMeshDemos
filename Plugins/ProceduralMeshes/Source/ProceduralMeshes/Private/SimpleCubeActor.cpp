@@ -3,7 +3,7 @@
 // Example cube mesh
 
 #include "SimpleCubeActor.h"
-#include "RuntimeMeshProviderStatic.h"
+#include "Providers/RuntimeMeshProviderStatic.h"
 
 ASimpleCubeActor::ASimpleCubeActor()
 {

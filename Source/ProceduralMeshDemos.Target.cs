@@ -8,7 +8,8 @@ public class ProceduralMeshDemosTarget : TargetRules
 	public ProceduralMeshDemosTarget(TargetInfo Target) : base(Target)
     {
 		Type = TargetType.Game;
+		DefaultBuildSettings = BuildSettingsVersion.V2;
 
-        ExtraModuleNames.AddRange(new string[] { "ProceduralMeshDemos" });
+		ExtraModuleNames.AddRange(new string[] { "ProceduralMeshDemos" });
     }
 }

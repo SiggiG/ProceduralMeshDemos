@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include "Engine.h"
-#include "ModuleManager.h"
+#include "CoreMinimal.h"
 
 class FProceduralMeshesModule : public IModuleInterface
 {
