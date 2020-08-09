@@ -9,6 +9,7 @@ ASierpinskiLineActor::ASierpinskiLineActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
+	StaticProvider->SetSerializeFlag(false);
 }
 
 void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)

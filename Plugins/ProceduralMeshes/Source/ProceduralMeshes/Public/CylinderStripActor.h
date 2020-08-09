@@ -51,9 +51,14 @@ private:
 
 	// Mesh buffers
 	void SetupMeshBuffers();
+	UPROPERTY(Transient)
 	TArray<FVector> Positions;
+	UPROPERTY(Transient)
 	TArray<int32> Triangles;
+	UPROPERTY(Transient)
 	TArray<FVector> Normals;
+	UPROPERTY(Transient)
 	TArray<FRuntimeMeshTangent> Tangents;
+	UPROPERTY(Transient)
 	TArray<FVector2D> TexCoords;
 };

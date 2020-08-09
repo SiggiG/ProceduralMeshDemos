@@ -57,13 +57,18 @@ private:
 	void GeneratePoints();
 	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
 
+	UPROPERTY(Transient)
 	TArray<float> HeightValues;
 	float MaxHeightValue = 0.0f;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
+	UPROPERTY(Transient)
 	TArray<FVector> Positions;
+	UPROPERTY(Transient)
 	TArray<int32> Triangles;
+	UPROPERTY(Transient)
 	TArray<FVector> Normals;
+	UPROPERTY(Transient)
 	TArray<FVector2D> TexCoords;
 };

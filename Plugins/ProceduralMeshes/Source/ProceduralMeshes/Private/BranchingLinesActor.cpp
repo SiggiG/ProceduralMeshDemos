@@ -9,6 +9,7 @@ ABranchingLinesActor::ABranchingLinesActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
+	StaticProvider->SetSerializeFlag(false);
 
 	// Setup random offset directions
 	OffsetDirections.Add(FVector(1, 0, 0));

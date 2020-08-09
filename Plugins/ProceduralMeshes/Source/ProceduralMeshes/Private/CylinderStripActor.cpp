@@ -9,6 +9,7 @@ ACylinderStripActor::ACylinderStripActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
+	StaticProvider->SetSerializeFlag(false);
 }
 
 void ACylinderStripActor::OnConstruction(const FTransform& Transform)

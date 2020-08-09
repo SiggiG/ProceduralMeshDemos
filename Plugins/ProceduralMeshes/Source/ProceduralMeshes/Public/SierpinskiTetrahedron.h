@@ -144,14 +144,20 @@ private:
 	void SetTetrahedronUV(FTetrahedronStructure& Tetrahedron) const;
 	FVector2D GetUVForSide(const FVector Point, const ETetrahedronSide Side) const;
 
+	UPROPERTY(Transient)
 	FTetrahedronStructure FirstTetrahedron;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
+	UPROPERTY(Transient)
 	TArray<FVector> Positions;
+	UPROPERTY(Transient)
 	TArray<int32> Triangles;
+	UPROPERTY(Transient)
 	TArray<FVector> Normals;
+	UPROPERTY(Transient)
 	TArray<FRuntimeMeshTangent> Tangents;
+	UPROPERTY(Transient)
 	TArray<FVector2D> TexCoords;
 
 	// Pre-calculated vectors that define a quad for each tetrahedron side

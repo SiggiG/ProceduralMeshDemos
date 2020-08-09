@@ -10,6 +10,7 @@ ASierpinskiTetrahedron::ASierpinskiTetrahedron()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
+	StaticProvider->SetSerializeFlag(false);
 }
 
 void ASierpinskiTetrahedron::OnConstruction(const FTransform& Transform)

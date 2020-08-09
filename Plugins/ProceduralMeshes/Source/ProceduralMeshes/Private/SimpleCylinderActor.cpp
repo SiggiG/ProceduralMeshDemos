@@ -9,6 +9,7 @@ ASimpleCylinderActor::ASimpleCylinderActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
+	StaticProvider->SetSerializeFlag(false);
 }
 
 void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
