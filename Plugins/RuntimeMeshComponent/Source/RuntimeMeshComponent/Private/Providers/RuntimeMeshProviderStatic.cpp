@@ -290,6 +290,11 @@ FRuntimeMeshRenderableMeshData URuntimeMeshProviderStatic::GetSectionRenderDataA
 	return MeshData;
 }
 
+void URuntimeMeshProviderStatic::SetShouldSerializeMeshData(bool bIsSerialized)
+{
+	StoreEditorGeneratedDataForGame = bIsSerialized;
+}
+
 void URuntimeMeshProviderStatic::Initialize()
 {
 	RMC_LOG_VERBOSE("Initializing...");
@@ -586,12 +591,6 @@ void URuntimeMeshProviderStatic::RemoveSection(int32 LODIndex, int32 SectionId)
 	}
 	URuntimeMeshProvider::RemoveSection(LODIndex, SectionId);
 }
-
-void URuntimeMeshProviderStatic::SetSerializeFlag(bool bIsStored)
-{
-	StoreEditorGeneratedDataForGame = bIsStored;
-}
-
 
 void URuntimeMeshProviderStatic::Serialize(FArchive& Ar)
 {

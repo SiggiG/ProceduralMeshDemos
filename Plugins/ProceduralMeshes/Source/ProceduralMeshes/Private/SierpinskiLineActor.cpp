@@ -9,12 +9,21 @@ ASierpinskiLineActor::ASierpinskiLineActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetSerializeFlag(false);
+	StaticProvider->SetShouldSerializeMeshData(false);
 }
 
 void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	PreCacheCrossSection();
+	GenerateLines();
+	GenerateMesh();
+}
+
+// This is called when actor is already in level and map is opened
+void ASierpinskiLineActor::PostLoad()
+{
+	Super::PostLoad();
 	PreCacheCrossSection();
 	GenerateLines();
 	GenerateMesh();

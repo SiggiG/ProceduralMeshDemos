@@ -26,6 +26,7 @@ public:
 	UMaterialInterface* Material;
 
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void PostLoad() override;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)

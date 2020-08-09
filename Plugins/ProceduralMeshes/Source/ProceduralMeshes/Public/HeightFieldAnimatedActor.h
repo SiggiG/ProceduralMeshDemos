@@ -41,6 +41,7 @@ public:
 	float AnimationSpeedY = 4.5f;
 
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void PostLoad() override;
 
 	virtual void Tick(float DeltaSeconds) override;
 

@@ -10,12 +10,19 @@ ASierpinskiTetrahedron::ASierpinskiTetrahedron()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetSerializeFlag(false);
+	StaticProvider->SetShouldSerializeMeshData(false);
 }
 
 void ASierpinskiTetrahedron::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	GenerateMesh();
+}
+
+// This is called when actor is already in level and map is opened
+void ASierpinskiTetrahedron::PostLoad()
+{
+	Super::PostLoad();
 	GenerateMesh();
 }
 

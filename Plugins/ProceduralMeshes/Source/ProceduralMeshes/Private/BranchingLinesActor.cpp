@@ -9,7 +9,7 @@ ABranchingLinesActor::ABranchingLinesActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetSerializeFlag(false);
+	StaticProvider->SetShouldSerializeMeshData(false);
 
 	// Setup random offset directions
 	OffsetDirections.Add(FVector(1, 0, 0));
@@ -19,6 +19,14 @@ ABranchingLinesActor::ABranchingLinesActor()
 void ABranchingLinesActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	PreCacheCrossSection();
+	GenerateMesh();
+}
+
+// This is called when actor is already in level and map is opened
+void ABranchingLinesActor::PostLoad()
+{
+	Super::PostLoad();
 	PreCacheCrossSection();
 	GenerateMesh();
 }

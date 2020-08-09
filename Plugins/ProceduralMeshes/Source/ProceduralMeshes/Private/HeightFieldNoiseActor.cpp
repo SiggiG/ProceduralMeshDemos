@@ -9,12 +9,19 @@ AHeightFieldNoiseActor::AHeightFieldNoiseActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetSerializeFlag(false);
+	StaticProvider->SetShouldSerializeMeshData(false);
 }
 
 void AHeightFieldNoiseActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	GenerateMesh();
+}
+
+// This is called when actor is already in level and map is opened
+void AHeightFieldNoiseActor::PostLoad()
+{
+	Super::PostLoad();
 	GenerateMesh();
 }
 
