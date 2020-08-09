@@ -1,7 +1,7 @@
-// Copyright 2016-2018 Chris Conway (Koderz). All Rights Reserved.
+// Copyright 2016-2020 Chris Conway (Koderz). All Rights Reserved.
 
 #include "RuntimeMeshComponentPlugin.h"
-#include "CustomVersion.h"
+#include "Serialization/CustomVersion.h"
 #include "RuntimeMeshCore.h"
 
 // Register the custom version with core
@@ -28,4 +28,4 @@ void FRuntimeMeshComponentPlugin::ShutdownModule()
 
 }
 
-DEFINE_LOG_CATEGORY(RuntimeMeshLog);
+DEFINE_LOG_CATEGORY(RuntimeMeshLog2);

@@ -1,7 +1,8 @@
 // Copyright Sigurdur Gunnarsson. All Rights Reserved. 
 // Licensed under the MIT License. See LICENSE file in the project root for full license information. 
 
-#include "ProceduralMeshesPrivatePCH.h"
+#include "ProceduralMeshes.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "FProceduralMeshesModule"
 

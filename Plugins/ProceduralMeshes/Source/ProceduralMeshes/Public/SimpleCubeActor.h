@@ -4,12 +4,15 @@
 
 #pragma once
 
-#include "GameFramework/Actor.h"
-#include "RuntimeMeshComponent.h"
+#include "CoreMinimal.h"
+#include "RuntimeMeshActor.h"
 #include "SimpleCubeActor.generated.h"
 
+class URuntimeMeshProviderStatic;
+struct FRuntimeMeshTangent;
+
 UCLASS()
-class PROCEDURALMESHES_API ASimpleCubeActor : public AActor
+class PROCEDURALMESHES_API ASimpleCubeActor : public ARuntimeMeshActor
 {
 	GENERATED_BODY()
 
@@ -22,29 +25,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
 
-	virtual void PostLoad() override;
-	virtual void PostActorCreated() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Default)
-	USceneComponent* RootNode;
-
-	UPROPERTY()
-	URuntimeMeshComponent* MeshComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
+	URuntimeMeshProviderStatic* StaticProvider;
 
 private:
 	void GenerateMesh();
-	void GenerateCube(TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, FVector InSize);
-	void BuildQuad(TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, FVector BottomLeft, FVector BottomRight, FVector TopRight, FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, FPackedNormal Normal, FPackedNormal Tangent);
+	static void GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector InSize);
+	static void BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FRuntimeMeshTangent Tangent);
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
-	TArray<FRuntimeMeshVertexSimple> Vertices;
+	UPROPERTY(Transient)
+	TArray<FVector> Positions;
+	UPROPERTY(Transient)
 	TArray<int32> Triangles;
+	UPROPERTY(Transient)
+	TArray<FVector> Normals;
+	UPROPERTY(Transient)
+	TArray<FRuntimeMeshTangent> Tangents;
+	UPROPERTY(Transient)
+	TArray<FVector2D> TexCoords;
 };

@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "GameFramework/Actor.h"
-#include "RuntimeMeshComponent.h"
+#include "CoreMinimal.h"
+#include "RuntimeMeshActor.h"
 #include "HeightFieldNoiseActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API AHeightFieldNoiseActor : public AActor
+class PROCEDURALMESHES_API AHeightFieldNoiseActor : public ARuntimeMeshActor
 {
 	GENERATED_BODY()
 
@@ -31,34 +31,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
 
-	virtual void PostLoad() override;
-	virtual void PostActorCreated() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Default)
-	USceneComponent* RootNode;
-
-	UPROPERTY()
-	URuntimeMeshComponent* MeshComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
+	URuntimeMeshProviderStatic* StaticProvider;
 
 private:
 	void GenerateMesh();
 	void GeneratePoints();
-	void GenerateGrid(TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, FVector2D InSize, int32 InLengthSections, int32 InWidthSections, const TArray<float>& InHeightValues);
+	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
 
 	UPROPERTY(Transient)
 	FRandomStream RngStream;
 
+	UPROPERTY(Transient)
 	TArray<float> HeightValues;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
-	TArray<FRuntimeMeshVertexSimple> Vertices;
+	UPROPERTY(Transient)
+	TArray<FVector> Positions;
+	UPROPERTY(Transient)
 	TArray<int32> Triangles;
+	UPROPERTY(Transient)
+	TArray<FVector> Normals;
+	UPROPERTY(Transient)
+	TArray<FRuntimeMeshTangent> Tangents;
+	UPROPERTY(Transient)
+	TArray<FVector2D> TexCoords;
 };

@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "GameFramework/Actor.h"
-#include "RuntimeMeshComponent.h"
+#include "CoreMinimal.h"
+#include "RuntimeMeshActor.h"
 #include "BranchingLinesActor.generated.h"
 
 // A simple struct to keep some data together
@@ -60,7 +60,7 @@ struct FBranchSegment
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ABranchingLinesActor : public AActor
+class PROCEDURALMESHES_API ABranchingLinesActor : public ARuntimeMeshActor
 {
 	GENERATED_BODY()
 
@@ -119,20 +119,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
 
-	virtual void PostLoad() override;
-	virtual void PostActorCreated() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Default)
-	USceneComponent* RootNode;
-
-	UPROPERTY()
-	URuntimeMeshComponent* MeshComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
+	URuntimeMeshProviderStatic* StaticProvider;
 
 private:
 	void GenerateMesh();
@@ -141,11 +132,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<FBranchSegment> Segments;
 
-	void AddSection(FVector InBottomLeftPoint, FVector InTopPoint, FVector InBottomRightPoint, FVector InBottomMiddlePoint, int32 InDepth);
-	void GenerateCylinder(TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, FVector StartPoint, FVector EndPoint, float InWidth, int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, bool bInSmoothNormals = true);
-	FBox GetBounds();
+	void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals = true);
 
-	FVector RotatePointAroundPivot(FVector InPoint, FVector InPivot, FVector InAngles);
+	static FVector RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles);
 	void PreCacheCrossSection();
 
 	int32 LastCachedCrossSectionCount;
@@ -160,7 +149,14 @@ private:
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	bool bHaveBuffersBeenInitialized = false;
-	TArray<FRuntimeMeshVertexSimple> Vertices;
+	UPROPERTY(Transient)
+	TArray<FVector> Positions;
+	UPROPERTY(Transient)
 	TArray<int32> Triangles;
+	UPROPERTY(Transient)
+	TArray<FVector> Normals;
+	UPROPERTY(Transient)
+	TArray<FRuntimeMeshTangent> Tangents;
+	UPROPERTY(Transient)
+	TArray<FVector2D> TexCoords;
 };

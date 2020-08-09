@@ -2,61 +2,65 @@
 // Licensed under the MIT License. See LICENSE file in the project root for full license information. 
 // Example Sierpinski tetrahedron
 
-#include "ProceduralMeshesPrivatePCH.h"
 #include "SierpinskiTetrahedron.h"
+#include "RuntimeMeshProviderStatic.h"
 
 
 ASierpinskiTetrahedron::ASierpinskiTetrahedron()
 {
-	RootNode = CreateDefaultSubobject<USceneComponent>("Root");
-	RootComponent = RootNode;
-
-	MeshComponent = CreateDefaultSubobject<URuntimeMeshComponent>(TEXT("ProceduralMesh"));
-	MeshComponent->GetOrCreateRuntimeMesh()->SetShouldSerializeMeshData(false);
-	MeshComponent->SetupAttachment(RootComponent);
+	PrimaryActorTick.bCanEverTick = false;
+	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
+	StaticProvider->SetSerializeFlag(false);
 }
 
-// This is called when actor is spawned (at runtime or when you drop it into the world in editor)
-void ASierpinskiTetrahedron::PostActorCreated()
+void ASierpinskiTetrahedron::OnConstruction(const FTransform& Transform)
 {
-	Super::PostActorCreated();
-	GenerateMesh();
-}
-
-// This is called when actor is already in level and map is opened
-void ASierpinskiTetrahedron::PostLoad()
-{
-	Super::PostLoad();
+	Super::OnConstruction(Transform);
 	GenerateMesh();
 }
 
 void ASierpinskiTetrahedron::SetupMeshBuffers()
 {
-	int32 TotalNumberOfTetrahedrons = FPlatformMath::RoundToInt(FMath::Pow(4.0f, Iterations + 1));
-	int32 NumberOfVerticesPerTetrahedrons = 4 * 3; // 4 sides of 3 points each
-	int32 NumberOfTriangleIndexesPerTetrahedrons = 4 * 3; // 4 sides of 3 points each
-	Vertices.AddUninitialized(TotalNumberOfTetrahedrons * NumberOfVerticesPerTetrahedrons);
-	Triangles.AddUninitialized(TotalNumberOfTetrahedrons * NumberOfTriangleIndexesPerTetrahedrons);
+	const int32 TotalNumberOfTetrahedrons = FPlatformMath::RoundToInt(FMath::Pow(4.0f, Iterations + 1));
+	const int32 NumberOfVerticesPerTetrahedrons = 4 * 3; // 4 sides of 3 points each
+	const int32 NumberOfTriangleIndexesPerTetrahedrons = 4 * 3; // 4 sides of 3 points each
+	const int32 VertexCount = TotalNumberOfTetrahedrons * NumberOfVerticesPerTetrahedrons;
+	const int32 TriangleCount = TotalNumberOfTetrahedrons * NumberOfTriangleIndexesPerTetrahedrons;
+
+	if (VertexCount != Positions.Num())
+	{
+		Positions.Empty();
+		Positions.AddUninitialized(VertexCount);
+		Normals.Empty();
+		Normals.AddUninitialized(VertexCount);
+		Tangents.Empty();
+		Tangents.AddUninitialized(VertexCount);
+		TexCoords.Empty();
+		TexCoords.AddUninitialized(VertexCount);
+	}
+
+	if (TriangleCount != Triangles.Num())
+	{
+		Triangles.Empty();
+		Triangles.AddUninitialized(TriangleCount);
+	}
 }
 
 void ASierpinskiTetrahedron::GenerateMesh()
 {
-	// The number of vertices or polygons wont change at runtime, so we'll just allocate the arrays once
-	if (!bHaveBuffersBeenInitialized)
-	{
-		SetupMeshBuffers();
-		bHaveBuffersBeenInitialized = true;
-	}
+	GetRuntimeMeshComponent()->Initialize(StaticProvider);
+	StaticProvider->ClearSection(0, 0);
+	SetupMeshBuffers();
 
 	// -------------------------------------------------------
 	// Start by setting the four points that define a tetrahedron
 	// 0,0 is center bottom.. so first two are offset half Size to the sides, and the 3rd straight up
-	FVector BottomLeftPoint = FVector(0, -0.5f * Size, 0);
-	FVector BottomRightPoint = FVector(0, 0.5f * Size, 0);
-	float ThirdBasePointDistance = FMath::Sqrt(3) * Size / 2;
-	FVector BottomMiddlePoint = FVector(ThirdBasePointDistance, 0, 0);
-	float CenterPosX = FMath::Tan(FMath::DegreesToRadians(30)) * (Size / 2.0f);
-	FVector TopPoint = FVector(CenterPosX, 0, ThirdBasePointDistance);
+	const FVector BottomLeftPoint = FVector(0, -0.5f * Size, 0);
+	const FVector BottomRightPoint = FVector(0, 0.5f * Size, 0);
+	const float ThirdBasePointDistance = FMath::Sqrt(3) * Size / 2;
+	const FVector BottomMiddlePoint = FVector(ThirdBasePointDistance, 0, 0);
+	const float CenterPosX = FMath::Tan(FMath::DegreesToRadians(30)) * (Size / 2.0f);
+	const FVector TopPoint = FVector(CenterPosX, 0, ThirdBasePointDistance);
 
 	int32 VertexIndex = 0;
 	int32 TriangleIndex = 0;
@@ -64,19 +68,14 @@ void ASierpinskiTetrahedron::GenerateMesh()
 	// Start by defining the initial tetrahedron and starting the subdivision
 	FirstTetrahedron = FTetrahedronStructure(BottomLeftPoint, BottomRightPoint, BottomMiddlePoint, TopPoint);
 	PrecalculateTetrahedronSideQuads();
-	GenerateTetrahedron(FirstTetrahedron, 0, Vertices, Triangles, VertexIndex, TriangleIndex);
+	GenerateTetrahedron(FirstTetrahedron, 0, Positions, Triangles, Normals, Tangents, TexCoords, VertexIndex, TriangleIndex);
 
-	// Find bounding box
-	float Height = FMath::Sqrt(3) * Size / 2;
-	float HalfSize = Size / 2;
-	FBox BoundingBox = FBox(FVector(0, -HalfSize, 0), FVector(Height, HalfSize, Height));
-
-	MeshComponent->ClearAllMeshSections();
-	MeshComponent->CreateMeshSection(0, Vertices, Triangles, BoundingBox, false, EUpdateFrequency::Infrequent);
-	MeshComponent->SetMaterial(0, Material);
+	const TArray<FColor> EmptyColors{};
+	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
+	StaticProvider->SetupMaterialSlot(0, TEXT("PyramidMaterial"), Material);
 }
 
-void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, int32& VertexIndex, int32& TriangleIndex)
+void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const
 {
 	if (InDepth > Iterations)
 	{
@@ -87,121 +86,71 @@ void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Te
 	// The corners of these are defined by existing points and points midway between those
 
 	// Calculate the mid points between the extents of the current tetrahedron
-	FVector FrontLeftMidPoint = ((Tetrahedron.CornerBottomLeft - Tetrahedron.CornerTop) * 0.5f) + Tetrahedron.CornerTop;
-	FVector FrontRightMidPoint = ((Tetrahedron.CornerBottomRight - Tetrahedron.CornerTop) * 0.5f) + Tetrahedron.CornerTop;
-	FVector FrontBottomMidPoint = ((Tetrahedron.CornerBottomLeft - Tetrahedron.CornerBottomRight) * 0.5f) + Tetrahedron.CornerBottomRight;
+	const FVector FrontLeftMidPoint = ((Tetrahedron.CornerBottomLeft - Tetrahedron.CornerTop) * 0.5f) + Tetrahedron.CornerTop;
+	const FVector FrontRightMidPoint = ((Tetrahedron.CornerBottomRight - Tetrahedron.CornerTop) * 0.5f) + Tetrahedron.CornerTop;
+	const FVector FrontBottomMidPoint = ((Tetrahedron.CornerBottomLeft - Tetrahedron.CornerBottomRight) * 0.5f) + Tetrahedron.CornerBottomRight;
 
-	FVector MiddleMidPointUp = ((Tetrahedron.CornerBottomMiddle - Tetrahedron.CornerTop) * 0.5f) + Tetrahedron.CornerTop;
-	FVector BottomLeftMidPoint = ((Tetrahedron.CornerBottomMiddle - Tetrahedron.CornerBottomLeft) * 0.5f) + Tetrahedron.CornerBottomLeft;
-	FVector BottomRightMidPoint = ((Tetrahedron.CornerBottomMiddle - Tetrahedron.CornerBottomRight) * 0.5f) + Tetrahedron.CornerBottomRight;
+	const FVector MiddleMidPointUp = ((Tetrahedron.CornerBottomMiddle - Tetrahedron.CornerTop) * 0.5f) + Tetrahedron.CornerTop;
+	const FVector BottomLeftMidPoint = ((Tetrahedron.CornerBottomMiddle - Tetrahedron.CornerBottomLeft) * 0.5f) + Tetrahedron.CornerBottomLeft;
+	const FVector BottomRightMidPoint = ((Tetrahedron.CornerBottomMiddle - Tetrahedron.CornerBottomRight) * 0.5f) + Tetrahedron.CornerBottomRight;
 
 	// Define 4x new tetrahedrons:
 	// We UV map them by defining a quad for each side with UV coords from 0,0 to 1.1, then projecting each point on to that quad and figuring out its UV based on its position
 	// ** Tetrahedron 1 (front left)
 	FTetrahedronStructure LeftTetrahedron = FTetrahedronStructure(Tetrahedron.CornerBottomLeft, FrontBottomMidPoint, BottomLeftMidPoint, FrontLeftMidPoint);
-	LeftTetrahedron.FrontFaceLeftPoint.UV0 = GetUVForSide(LeftTetrahedron.FrontFaceLeftPoint.Position, ETetrahedronSide::Front);
-	LeftTetrahedron.FrontFaceRightPoint.UV0 = GetUVForSide(LeftTetrahedron.FrontFaceRightPoint.Position, ETetrahedronSide::Front);
-	LeftTetrahedron.FrontFaceTopPoint.UV0 = GetUVForSide(LeftTetrahedron.FrontFaceTopPoint.Position, ETetrahedronSide::Front);
-	LeftTetrahedron.LeftFaceLeftPoint.UV0 = GetUVForSide(LeftTetrahedron.LeftFaceLeftPoint.Position, ETetrahedronSide::Left);
-	LeftTetrahedron.LeftFaceRightPoint.UV0 = GetUVForSide(LeftTetrahedron.LeftFaceRightPoint.Position, ETetrahedronSide::Left);
-	LeftTetrahedron.LeftFaceTopPoint.UV0 = GetUVForSide(LeftTetrahedron.LeftFaceTopPoint.Position, ETetrahedronSide::Left);
-	LeftTetrahedron.RightFaceLeftPoint.UV0 = GetUVForSide(LeftTetrahedron.RightFaceLeftPoint.Position, ETetrahedronSide::Right);
-	LeftTetrahedron.RightFaceRightPoint.UV0 = GetUVForSide(LeftTetrahedron.RightFaceRightPoint.Position, ETetrahedronSide::Right);
-	LeftTetrahedron.RightFaceTopPoint.UV0 = GetUVForSide(LeftTetrahedron.RightFaceTopPoint.Position, ETetrahedronSide::Right);
-	LeftTetrahedron.BottomFaceLeftPoint.UV0 = GetUVForSide(LeftTetrahedron.BottomFaceLeftPoint.Position, ETetrahedronSide::Bottom);
-	LeftTetrahedron.BottomFaceRightPoint.UV0 = GetUVForSide(LeftTetrahedron.BottomFaceRightPoint.Position, ETetrahedronSide::Bottom);
-	LeftTetrahedron.BottomFaceTopPoint.UV0 = GetUVForSide(LeftTetrahedron.BottomFaceTopPoint.Position, ETetrahedronSide::Bottom);
+	SetTetrahedronUV(LeftTetrahedron);
 
 	// ** Tetrahedron 2 (back middle)
 	FTetrahedronStructure MiddleTetrahedron = FTetrahedronStructure(BottomLeftMidPoint, BottomRightMidPoint, Tetrahedron.CornerBottomMiddle, MiddleMidPointUp);
-	MiddleTetrahedron.FrontFaceLeftPoint.UV0 = GetUVForSide(MiddleTetrahedron.FrontFaceLeftPoint.Position, ETetrahedronSide::Front);
-	MiddleTetrahedron.FrontFaceRightPoint.UV0 = GetUVForSide(MiddleTetrahedron.FrontFaceRightPoint.Position, ETetrahedronSide::Front);
-	MiddleTetrahedron.FrontFaceTopPoint.UV0 = GetUVForSide(MiddleTetrahedron.FrontFaceTopPoint.Position, ETetrahedronSide::Front);
-	MiddleTetrahedron.LeftFaceLeftPoint.UV0 = GetUVForSide(MiddleTetrahedron.LeftFaceLeftPoint.Position, ETetrahedronSide::Left);
-	MiddleTetrahedron.LeftFaceRightPoint.UV0 = GetUVForSide(MiddleTetrahedron.LeftFaceRightPoint.Position, ETetrahedronSide::Left);
-	MiddleTetrahedron.LeftFaceTopPoint.UV0 = GetUVForSide(MiddleTetrahedron.LeftFaceTopPoint.Position, ETetrahedronSide::Left);
-	MiddleTetrahedron.RightFaceLeftPoint.UV0 = GetUVForSide(MiddleTetrahedron.RightFaceLeftPoint.Position, ETetrahedronSide::Right);
-	MiddleTetrahedron.RightFaceRightPoint.UV0 = GetUVForSide(MiddleTetrahedron.RightFaceRightPoint.Position, ETetrahedronSide::Right);
-	MiddleTetrahedron.RightFaceTopPoint.UV0 = GetUVForSide(MiddleTetrahedron.RightFaceTopPoint.Position, ETetrahedronSide::Right);
-	MiddleTetrahedron.BottomFaceLeftPoint.UV0 = GetUVForSide(MiddleTetrahedron.BottomFaceLeftPoint.Position, ETetrahedronSide::Bottom);
-	MiddleTetrahedron.BottomFaceRightPoint.UV0 = GetUVForSide(MiddleTetrahedron.BottomFaceRightPoint.Position, ETetrahedronSide::Bottom);
-	MiddleTetrahedron.BottomFaceTopPoint.UV0 = GetUVForSide(MiddleTetrahedron.BottomFaceTopPoint.Position, ETetrahedronSide::Bottom);
+	SetTetrahedronUV(MiddleTetrahedron);
 
 	// ** Tetrahedron 3 (front right)
 	FTetrahedronStructure RightTetrahedron = FTetrahedronStructure(FrontBottomMidPoint, Tetrahedron.CornerBottomRight, BottomRightMidPoint, FrontRightMidPoint);
-	RightTetrahedron.FrontFaceLeftPoint.UV0 = GetUVForSide(RightTetrahedron.FrontFaceLeftPoint.Position, ETetrahedronSide::Front);
-	RightTetrahedron.FrontFaceRightPoint.UV0 = GetUVForSide(RightTetrahedron.FrontFaceRightPoint.Position, ETetrahedronSide::Front);
-	RightTetrahedron.FrontFaceTopPoint.UV0 = GetUVForSide(RightTetrahedron.FrontFaceTopPoint.Position, ETetrahedronSide::Front);
-	RightTetrahedron.LeftFaceLeftPoint.UV0 = GetUVForSide(RightTetrahedron.LeftFaceLeftPoint.Position, ETetrahedronSide::Left);
-	RightTetrahedron.LeftFaceRightPoint.UV0 = GetUVForSide(RightTetrahedron.LeftFaceRightPoint.Position, ETetrahedronSide::Left);
-	RightTetrahedron.LeftFaceTopPoint.UV0 = GetUVForSide(RightTetrahedron.LeftFaceTopPoint.Position, ETetrahedronSide::Left);
-	RightTetrahedron.RightFaceLeftPoint.UV0 = GetUVForSide(RightTetrahedron.RightFaceLeftPoint.Position, ETetrahedronSide::Right);
-	RightTetrahedron.RightFaceRightPoint.UV0 = GetUVForSide(RightTetrahedron.RightFaceRightPoint.Position, ETetrahedronSide::Right);
-	RightTetrahedron.RightFaceTopPoint.UV0 = GetUVForSide(RightTetrahedron.RightFaceTopPoint.Position, ETetrahedronSide::Right);
-	RightTetrahedron.BottomFaceLeftPoint.UV0 = GetUVForSide(RightTetrahedron.BottomFaceLeftPoint.Position, ETetrahedronSide::Bottom);
-	RightTetrahedron.BottomFaceRightPoint.UV0 = GetUVForSide(RightTetrahedron.BottomFaceRightPoint.Position, ETetrahedronSide::Bottom);
-	RightTetrahedron.BottomFaceTopPoint.UV0 = GetUVForSide(RightTetrahedron.BottomFaceTopPoint.Position, ETetrahedronSide::Bottom);
+	SetTetrahedronUV(RightTetrahedron);
 
 	// ** Tetrahedron 4 (top)
 	FTetrahedronStructure TopTetrahedron = FTetrahedronStructure(FrontLeftMidPoint, FrontRightMidPoint, MiddleMidPointUp, Tetrahedron.CornerTop);
-	TopTetrahedron.FrontFaceLeftPoint.UV0 = GetUVForSide(TopTetrahedron.FrontFaceLeftPoint.Position, ETetrahedronSide::Front);
-	TopTetrahedron.FrontFaceRightPoint.UV0 = GetUVForSide(TopTetrahedron.FrontFaceRightPoint.Position, ETetrahedronSide::Front);
-	TopTetrahedron.FrontFaceTopPoint.UV0 = GetUVForSide(TopTetrahedron.FrontFaceTopPoint.Position, ETetrahedronSide::Front);
-	TopTetrahedron.LeftFaceLeftPoint.UV0 = GetUVForSide(TopTetrahedron.LeftFaceLeftPoint.Position, ETetrahedronSide::Left);
-	TopTetrahedron.LeftFaceRightPoint.UV0 = GetUVForSide(TopTetrahedron.LeftFaceRightPoint.Position, ETetrahedronSide::Left);
-	TopTetrahedron.LeftFaceTopPoint.UV0 = GetUVForSide(TopTetrahedron.LeftFaceTopPoint.Position, ETetrahedronSide::Left);
-	TopTetrahedron.RightFaceLeftPoint.UV0 = GetUVForSide(TopTetrahedron.RightFaceLeftPoint.Position, ETetrahedronSide::Right);
-	TopTetrahedron.RightFaceRightPoint.UV0 = GetUVForSide(TopTetrahedron.RightFaceRightPoint.Position, ETetrahedronSide::Right);
-	TopTetrahedron.RightFaceTopPoint.UV0 = GetUVForSide(TopTetrahedron.RightFaceTopPoint.Position, ETetrahedronSide::Right);
-	TopTetrahedron.BottomFaceLeftPoint.UV0 = GetUVForSide(TopTetrahedron.BottomFaceLeftPoint.Position, ETetrahedronSide::Bottom);
-	TopTetrahedron.BottomFaceRightPoint.UV0 = GetUVForSide(TopTetrahedron.BottomFaceRightPoint.Position, ETetrahedronSide::Bottom);
-	TopTetrahedron.BottomFaceTopPoint.UV0 = GetUVForSide(TopTetrahedron.BottomFaceTopPoint.Position, ETetrahedronSide::Bottom);
+	SetTetrahedronUV(TopTetrahedron);
 
 	if (InDepth == Iterations)
 	{
 		// Last iteration, here we generate the meshes!
 		// ** Tetrahedron 1 (front left)
-		AddPolygon(LeftTetrahedron.BottomFaceLeftPoint, LeftTetrahedron.BottomFaceRightPoint, LeftTetrahedron.BottomFaceTopPoint, LeftTetrahedron.BottomFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(LeftTetrahedron.FrontFaceLeftPoint, LeftTetrahedron.FrontFaceRightPoint, LeftTetrahedron.FrontFaceTopPoint, LeftTetrahedron.FrontFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(LeftTetrahedron.LeftFaceLeftPoint, LeftTetrahedron.LeftFaceRightPoint, LeftTetrahedron.LeftFaceTopPoint, LeftTetrahedron.LeftFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(LeftTetrahedron.RightFaceLeftPoint, LeftTetrahedron.RightFaceRightPoint, LeftTetrahedron.RightFaceTopPoint, LeftTetrahedron.RightFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-
+		AddTetrahedronPolygons(LeftTetrahedron, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+		
 		// ** Tetrahedron 2 (back middle)
-		AddPolygon(MiddleTetrahedron.BottomFaceLeftPoint, MiddleTetrahedron.BottomFaceRightPoint, MiddleTetrahedron.BottomFaceTopPoint, MiddleTetrahedron.BottomFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(MiddleTetrahedron.FrontFaceLeftPoint, MiddleTetrahedron.FrontFaceRightPoint, MiddleTetrahedron.FrontFaceTopPoint, MiddleTetrahedron.FrontFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(MiddleTetrahedron.LeftFaceLeftPoint, MiddleTetrahedron.LeftFaceRightPoint, MiddleTetrahedron.LeftFaceTopPoint, MiddleTetrahedron.LeftFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(MiddleTetrahedron.RightFaceLeftPoint, MiddleTetrahedron.RightFaceRightPoint, MiddleTetrahedron.RightFaceTopPoint, MiddleTetrahedron.RightFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-
+		AddTetrahedronPolygons(MiddleTetrahedron, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+		
 		// ** Tetrahedron 3 (front right)
-		AddPolygon(RightTetrahedron.BottomFaceLeftPoint, RightTetrahedron.BottomFaceRightPoint, RightTetrahedron.BottomFaceTopPoint, RightTetrahedron.BottomFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(RightTetrahedron.FrontFaceLeftPoint, RightTetrahedron.FrontFaceRightPoint, RightTetrahedron.FrontFaceTopPoint, RightTetrahedron.FrontFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(RightTetrahedron.LeftFaceLeftPoint, RightTetrahedron.LeftFaceRightPoint, RightTetrahedron.LeftFaceTopPoint, RightTetrahedron.LeftFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(RightTetrahedron.RightFaceLeftPoint, RightTetrahedron.RightFaceRightPoint, RightTetrahedron.RightFaceTopPoint, RightTetrahedron.RightFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
+		AddTetrahedronPolygons(RightTetrahedron, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
 
 		// ** Tetrahedron 4 (top)
-		AddPolygon(TopTetrahedron.BottomFaceLeftPoint, TopTetrahedron.BottomFaceRightPoint, TopTetrahedron.BottomFaceTopPoint, TopTetrahedron.BottomFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(TopTetrahedron.FrontFaceLeftPoint, TopTetrahedron.FrontFaceRightPoint, TopTetrahedron.FrontFaceTopPoint, TopTetrahedron.FrontFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(TopTetrahedron.LeftFaceLeftPoint, TopTetrahedron.LeftFaceRightPoint, TopTetrahedron.LeftFaceTopPoint, TopTetrahedron.LeftFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		AddPolygon(TopTetrahedron.RightFaceLeftPoint, TopTetrahedron.RightFaceRightPoint, TopTetrahedron.RightFaceTopPoint, TopTetrahedron.RightFaceNormal, InVertices, InTriangles, VertexIndex, TriangleIndex);
+		AddTetrahedronPolygons(TopTetrahedron, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
 	}
 	else
 	{
 		// Keep subdividing
-		GenerateTetrahedron(LeftTetrahedron, InDepth + 1, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		GenerateTetrahedron(RightTetrahedron, InDepth + 1, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		GenerateTetrahedron(MiddleTetrahedron, InDepth + 1, InVertices, InTriangles, VertexIndex, TriangleIndex);
-		GenerateTetrahedron(TopTetrahedron, InDepth + 1, InVertices, InTriangles, VertexIndex, TriangleIndex);
+		GenerateTetrahedron(LeftTetrahedron, InDepth + 1, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+		GenerateTetrahedron(RightTetrahedron, InDepth + 1, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+		GenerateTetrahedron(MiddleTetrahedron, InDepth + 1, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+		GenerateTetrahedron(TopTetrahedron, InDepth + 1, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
 	}
 }
 
-void ASierpinskiTetrahedron::AddPolygon(const FRuntimeMeshVertexSimple& Point1, const FRuntimeMeshVertexSimple& Point2, const FRuntimeMeshVertexSimple& Point3, FVector FaceNormal, TArray<FRuntimeMeshVertexSimple>& InVertices, TArray<int32>& InTriangles, int32& VertexIndex, int32& TriangleIndex)
+void ASierpinskiTetrahedron::AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
 {
-	int32 Point1Index, Point2Index, Point3Index;
+	AddPolygon(Tetrahedron.BottomFaceLeftPoint, Tetrahedron.BottomFaceLeftPointUV, Tetrahedron.BottomFaceRightPoint, Tetrahedron.BottomFaceRightPointUV, Tetrahedron.BottomFaceTopPoint, Tetrahedron.BottomFaceTopPointUV, Tetrahedron.BottomFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+	AddPolygon(Tetrahedron.FrontFaceLeftPoint, Tetrahedron.FrontFaceLeftPointUV, Tetrahedron.FrontFaceRightPoint, Tetrahedron.FrontFaceRightPointUV, Tetrahedron.FrontFaceTopPoint, Tetrahedron.FrontFaceTopPointUV, Tetrahedron.FrontFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+	AddPolygon(Tetrahedron.LeftFaceLeftPoint, Tetrahedron.LeftFaceLeftPointUV, Tetrahedron.LeftFaceRightPoint, Tetrahedron.LeftFaceRightPointUV, Tetrahedron.LeftFaceTopPoint, Tetrahedron.LeftFaceTopPointUV, Tetrahedron.LeftFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+	AddPolygon(Tetrahedron.RightFaceLeftPoint, Tetrahedron.RightFaceLeftPointUV, Tetrahedron.RightFaceRightPoint, Tetrahedron.RightFaceRightPointUV, Tetrahedron.RightFaceTopPoint, Tetrahedron.RightFaceTopPointUV, Tetrahedron.RightFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
+}
 
+void ASierpinskiTetrahedron::AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, const FVector FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
+{
 	// Reserve indexes and assign the vertices
-	Point1Index = VertexIndex++;
-	Point2Index = VertexIndex++;
-	Point3Index = VertexIndex++;
+	const int32 Point1Index = VertexIndex++;
+	const int32 Point2Index = VertexIndex++;
+	const int32 Point3Index = VertexIndex++;
 	InVertices[Point1Index] = Point1;
 	InVertices[Point2Index] = Point2;
 	InVertices[Point3Index] = Point3;
@@ -212,35 +161,55 @@ void ASierpinskiTetrahedron::AddPolygon(const FRuntimeMeshVertexSimple& Point1, 
 	InTriangles[TriangleIndex++] = Point2Index;
 	InTriangles[TriangleIndex++] = Point3Index;
 
+	// UVs
+	InTexCoords[Point1Index] = Point1UV;
+	InTexCoords[Point2Index] = Point2UV;
+	InTexCoords[Point3Index] = Point3UV;
+
 	// Normals
-	InVertices[Point1Index].Normal = InVertices[Point2Index].Normal = InVertices[Point3Index].Normal = FPackedNormal(FaceNormal);
+	InNormals[Point1Index] = InNormals[Point2Index] = InNormals[Point3Index] = FaceNormal;
 
 	// Tangents (perpendicular to the surface)
-	FVector SurfaceTangent = InVertices[Point1Index].Position - InVertices[Point2Index].Position;
-	SurfaceTangent = SurfaceTangent.GetSafeNormal();
-	InVertices[Point1Index].Tangent = InVertices[Point2Index].Tangent = InVertices[Point3Index].Tangent = FPackedNormal(SurfaceTangent);
+	const FVector SurfaceTangent = (InVertices[Point1Index] - InVertices[Point2Index]).GetSafeNormal();
+	InTangents[Point1Index] = InTangents[Point2Index] = InTangents[Point3Index] = SurfaceTangent;
 }
 
-FVector2D ASierpinskiTetrahedron::GetUVForSide(FVector Point, ETetrahedronSide Side)
+void ASierpinskiTetrahedron::SetTetrahedronUV(FTetrahedronStructure& Tetrahedron) const
+{
+	Tetrahedron.FrontFaceLeftPointUV = GetUVForSide(Tetrahedron.FrontFaceLeftPoint, ETetrahedronSide::Front);
+	Tetrahedron.FrontFaceRightPointUV = GetUVForSide(Tetrahedron.FrontFaceRightPoint, ETetrahedronSide::Front);
+	Tetrahedron.FrontFaceTopPointUV = GetUVForSide(Tetrahedron.FrontFaceTopPoint, ETetrahedronSide::Front);
+	Tetrahedron.LeftFaceLeftPointUV = GetUVForSide(Tetrahedron.LeftFaceLeftPoint, ETetrahedronSide::Left);
+	Tetrahedron.LeftFaceRightPointUV = GetUVForSide(Tetrahedron.LeftFaceRightPoint, ETetrahedronSide::Left);
+	Tetrahedron.LeftFaceTopPointUV = GetUVForSide(Tetrahedron.LeftFaceTopPoint, ETetrahedronSide::Left);
+	Tetrahedron.RightFaceLeftPointUV = GetUVForSide(Tetrahedron.RightFaceLeftPoint, ETetrahedronSide::Right);
+	Tetrahedron.RightFaceRightPointUV = GetUVForSide(Tetrahedron.RightFaceRightPoint, ETetrahedronSide::Right);
+	Tetrahedron.RightFaceTopPointUV = GetUVForSide(Tetrahedron.RightFaceTopPoint, ETetrahedronSide::Right);
+	Tetrahedron.BottomFaceLeftPointUV = GetUVForSide(Tetrahedron.BottomFaceLeftPoint, ETetrahedronSide::Bottom);
+	Tetrahedron.BottomFaceRightPointUV = GetUVForSide(Tetrahedron.BottomFaceRightPoint, ETetrahedronSide::Bottom);
+	Tetrahedron.BottomFaceTopPointUV = GetUVForSide(Tetrahedron.BottomFaceTopPoint, ETetrahedronSide::Bottom);
+}
+
+FVector2D ASierpinskiTetrahedron::GetUVForSide(const FVector Point, const ETetrahedronSide Side) const
 {
 	if (Side == ETetrahedronSide::Front)
 	{
-		FVector VectorToProject = FrontQuadTopLeftPoint - Point;
+		const FVector VectorToProject = FrontQuadTopLeftPoint - Point;
 		return FVector2D(VectorToProject.ProjectOnTo(FrontQuadTopSide).Size() / FrontQuadTopSide.Size(), VectorToProject.ProjectOnTo(FrontQuadLeftSide).Size() / FrontQuadLeftSide.Size());
 	}
 	else if (Side == ETetrahedronSide::Left)
 	{
-		FVector VectorToProject = LeftQuadTopLeftPoint - Point;
+		const FVector VectorToProject = LeftQuadTopLeftPoint - Point;
 		return FVector2D(VectorToProject.ProjectOnTo(LeftQuadTopSide).Size() / LeftQuadTopSide.Size(), VectorToProject.ProjectOnTo(LeftQuadLeftSide).Size() / LeftQuadLeftSide.Size());
 	}
 	else if (Side == ETetrahedronSide::Right)
 	{
-		FVector VectorToProject = RightQuadTopLeftPoint - Point;
+		const FVector VectorToProject = RightQuadTopLeftPoint - Point;
 		return FVector2D(VectorToProject.ProjectOnTo(RightQuadTopSide).Size() / RightQuadTopSide.Size(), VectorToProject.ProjectOnTo(RightQuadLeftSide).Size() / RightQuadLeftSide.Size());
 	}
 	else if (Side == ETetrahedronSide::Bottom)
 	{
-		FVector VectorToProject = BottomQuadTopLeftPoint - Point;
+		const FVector VectorToProject = BottomQuadTopLeftPoint - Point;
 		return FVector2D(VectorToProject.ProjectOnTo(BottomQuadTopSide).Size() / BottomQuadTopSide.Size(), VectorToProject.ProjectOnTo(BottomQuadLeftSide).Size() / BottomQuadLeftSide.Size());
 	}
 	else
@@ -256,65 +225,38 @@ void ASierpinskiTetrahedron::PrecalculateTetrahedronSideQuads()
 	// 		Example: FVector ProjectedPointLocal = FVector::PointPlaneProject(Point, FrontPlaneLocalSpace);
 
 	// Front side
-	FVector FrontPlaneBottomLeft = FirstTetrahedron.FrontFaceLeftPoint.Position;
-	FVector FrontPlaneBottomRight = FirstTetrahedron.FrontFaceRightPoint.Position;
-	FVector FrontBottomMidPoint = ((FrontPlaneBottomLeft - FrontPlaneBottomRight) * 0.5f) + FrontPlaneBottomRight;
-	FVector FrontPlaneTopRight = FrontPlaneBottomRight + (FirstTetrahedron.FrontFaceTopPoint.Position - FrontBottomMidPoint);
-	FrontQuadTopLeftPoint = FrontPlaneBottomLeft + (FirstTetrahedron.FrontFaceTopPoint.Position - FrontBottomMidPoint);
+	const FVector FrontPlaneBottomLeft = FirstTetrahedron.FrontFaceLeftPoint;
+	const FVector FrontPlaneBottomRight = FirstTetrahedron.FrontFaceRightPoint;
+	const FVector FrontBottomMidPoint = ((FrontPlaneBottomLeft - FrontPlaneBottomRight) * 0.5f) + FrontPlaneBottomRight;
+	const FVector FrontPlaneTopRight = FrontPlaneBottomRight + (FirstTetrahedron.FrontFaceTopPoint - FrontBottomMidPoint);
+	FrontQuadTopLeftPoint = FrontPlaneBottomLeft + (FirstTetrahedron.FrontFaceTopPoint - FrontBottomMidPoint);
 	FrontQuadTopSide = FrontPlaneTopRight - FrontQuadTopLeftPoint;
 	FrontQuadLeftSide = FrontPlaneBottomLeft - FrontQuadTopLeftPoint;
 
 	// Left side
-	FVector LeftPlaneBottomLeft = FirstTetrahedron.LeftFaceLeftPoint.Position;
-	FVector LeftPlaneBottomRight = FirstTetrahedron.LeftFaceRightPoint.Position;
-	FVector LeftBottomMidPoint = ((LeftPlaneBottomLeft - LeftPlaneBottomRight) * 0.5f) + LeftPlaneBottomRight;
-	FVector LeftPlaneTopRight = LeftPlaneBottomRight + (FirstTetrahedron.LeftFaceTopPoint.Position - LeftBottomMidPoint);
-	LeftQuadTopLeftPoint = LeftPlaneBottomLeft + (FirstTetrahedron.LeftFaceTopPoint.Position - LeftBottomMidPoint);
+	const FVector LeftPlaneBottomLeft = FirstTetrahedron.LeftFaceLeftPoint;
+	const FVector LeftPlaneBottomRight = FirstTetrahedron.LeftFaceRightPoint;
+	const FVector LeftBottomMidPoint = ((LeftPlaneBottomLeft - LeftPlaneBottomRight) * 0.5f) + LeftPlaneBottomRight;
+	const FVector LeftPlaneTopRight = LeftPlaneBottomRight + (FirstTetrahedron.LeftFaceTopPoint - LeftBottomMidPoint);
+	LeftQuadTopLeftPoint = LeftPlaneBottomLeft + (FirstTetrahedron.LeftFaceTopPoint - LeftBottomMidPoint);
 	LeftQuadTopSide = LeftPlaneTopRight - LeftQuadTopLeftPoint;
 	LeftQuadLeftSide = LeftPlaneBottomLeft - LeftQuadTopLeftPoint;
 
 	// Right side
-	FVector RightPlaneBottomLeft = FirstTetrahedron.RightFaceLeftPoint.Position;
-	FVector RightPlaneBottomRight = FirstTetrahedron.RightFaceRightPoint.Position;
-	FVector RightBottomMidPoint = ((RightPlaneBottomLeft - RightPlaneBottomRight) * 0.5f) + RightPlaneBottomRight;
-	FVector RightPlaneTopRight = RightPlaneBottomRight + (FirstTetrahedron.RightFaceTopPoint.Position - RightBottomMidPoint);
-	RightQuadTopLeftPoint = RightPlaneBottomLeft + (FirstTetrahedron.RightFaceTopPoint.Position - RightBottomMidPoint);
+	const FVector RightPlaneBottomLeft = FirstTetrahedron.RightFaceLeftPoint;
+	const FVector RightPlaneBottomRight = FirstTetrahedron.RightFaceRightPoint;
+	const FVector RightBottomMidPoint = ((RightPlaneBottomLeft - RightPlaneBottomRight) * 0.5f) + RightPlaneBottomRight;
+	const FVector RightPlaneTopRight = RightPlaneBottomRight + (FirstTetrahedron.RightFaceTopPoint - RightBottomMidPoint);
+	RightQuadTopLeftPoint = RightPlaneBottomLeft + (FirstTetrahedron.RightFaceTopPoint - RightBottomMidPoint);
 	RightQuadTopSide = RightPlaneTopRight - RightQuadTopLeftPoint;
 	RightQuadLeftSide = RightPlaneBottomLeft - RightQuadTopLeftPoint;
 
 	// Bottom side
-	FVector BottomPlaneBottomLeft = FirstTetrahedron.BottomFaceLeftPoint.Position;
-	FVector BottomPlaneBottomRight = FirstTetrahedron.BottomFaceRightPoint.Position;
-	FVector BottomBottomMidPoint = ((BottomPlaneBottomLeft - BottomPlaneBottomRight) * 0.5f) + BottomPlaneBottomRight;
-	FVector BottomPlaneTopRight = BottomPlaneBottomRight + (FirstTetrahedron.BottomFaceTopPoint.Position - BottomBottomMidPoint);
-	BottomQuadTopLeftPoint = BottomPlaneBottomLeft + (FirstTetrahedron.BottomFaceTopPoint.Position - BottomBottomMidPoint);
+	const FVector BottomPlaneBottomLeft = FirstTetrahedron.BottomFaceLeftPoint;
+	const FVector BottomPlaneBottomRight = FirstTetrahedron.BottomFaceRightPoint;
+	const FVector BottomBottomMidPoint = ((BottomPlaneBottomLeft - BottomPlaneBottomRight) * 0.5f) + BottomPlaneBottomRight;
+	const FVector BottomPlaneTopRight = BottomPlaneBottomRight + (FirstTetrahedron.BottomFaceTopPoint - BottomBottomMidPoint);
+	BottomQuadTopLeftPoint = BottomPlaneBottomLeft + (FirstTetrahedron.BottomFaceTopPoint - BottomBottomMidPoint);
 	BottomQuadTopSide = BottomPlaneTopRight - BottomQuadTopLeftPoint;
 	BottomQuadLeftSide = BottomPlaneBottomLeft - BottomQuadTopLeftPoint;
 }
-
-#if WITH_EDITOR
-void ASierpinskiTetrahedron::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
- 	FName MemberPropertyChanged = (PropertyChangedEvent.MemberProperty ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None);
- 
- 	if ((MemberPropertyChanged == GET_MEMBER_NAME_CHECKED(ASierpinskiTetrahedron, Size)))
- 	{
- 		// Same vert count, so just regen mesh with same buffers
- 		GenerateMesh();
- 	}
- 	else if ((MemberPropertyChanged == GET_MEMBER_NAME_CHECKED(ASierpinskiTetrahedron, Iterations)))
-	{
-		// Vertice count has changed, so reset buffer and then regen mesh
-		Vertices.Empty();
-		Triangles.Empty();
-		bHaveBuffersBeenInitialized = false;
-		GenerateMesh();
-	}
-	else if ((MemberPropertyChanged == GET_MEMBER_NAME_CHECKED(ASierpinskiTetrahedron, Material)))
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
-}
-#endif // WITH_EDITOR
