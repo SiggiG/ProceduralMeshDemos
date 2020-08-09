@@ -19,6 +19,13 @@ void ASierpinskiTetrahedron::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void ASierpinskiTetrahedron::PostLoad()
+{
+	Super::PostLoad();
+	GenerateMesh();
+}
+
 void ASierpinskiTetrahedron::SetupMeshBuffers()
 {
 	const int32 TotalNumberOfTetrahedrons = FPlatformMath::RoundToInt(FMath::Pow(4.0f, Iterations + 1));

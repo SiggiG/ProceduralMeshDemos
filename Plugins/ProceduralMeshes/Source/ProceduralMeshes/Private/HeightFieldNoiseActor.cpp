@@ -18,6 +18,13 @@ void AHeightFieldNoiseActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void AHeightFieldNoiseActor::PostLoad()
+{
+	Super::PostLoad();
+	GenerateMesh();
+}
+
 void AHeightFieldNoiseActor::SetupMeshBuffers()
 {
 	const int32 NumberOfPoints = (LengthSections + 1) * (WidthSections + 1);

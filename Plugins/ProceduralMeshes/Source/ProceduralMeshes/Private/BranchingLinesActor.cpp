@@ -23,6 +23,14 @@ void ABranchingLinesActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void ABranchingLinesActor::PostLoad()
+{
+	Super::PostLoad();
+	PreCacheCrossSection();
+	GenerateMesh();
+}
+
 void ABranchingLinesActor::SetupMeshBuffers()
 {
 	const int32 TotalNumberOfVerticesPerSection = RadialSegmentCount * 4; // 4 verts per face 

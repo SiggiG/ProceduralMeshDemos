@@ -18,6 +18,13 @@ void ASimpleCubeActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void ASimpleCubeActor::PostLoad()
+{
+	Super::PostLoad();
+	GenerateMesh();
+}
+
 void ASimpleCubeActor::SetupMeshBuffers()
 {
 	const int32 VertexCount = 6 * 4; // 6 sides on a cube, 4 verts each

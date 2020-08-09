@@ -18,6 +18,13 @@ void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void AHeightFieldAnimatedActor::PostLoad()
+{
+	Super::PostLoad();
+	GenerateMesh();
+}
+
 void AHeightFieldAnimatedActor::SetupMeshBuffers()
 {
 	const int32 NumberOfPoints = (LengthSections + 1) * (WidthSections + 1);

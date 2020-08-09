@@ -19,6 +19,14 @@ void ACylinderStripActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void ACylinderStripActor::PostLoad()
+{
+	Super::PostLoad();
+	PreCacheCrossSection();
+	GenerateMesh();
+}
+
 void ACylinderStripActor::SetupMeshBuffers()
 {
 	const int32 TotalNumberOfVerticesPerSection = RadialSegmentCount * 4; // 4 verts per face 

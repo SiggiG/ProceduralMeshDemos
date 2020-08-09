@@ -18,6 +18,13 @@ void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
+// This is called when actor is already in level and map is opened
+void ASimpleCylinderActor::PostLoad()
+{
+	Super::PostLoad();
+	GenerateMesh();
+}
+
 void ASimpleCylinderActor::SetupMeshBuffers()
 {
 	int32 VertexCount = RadialSegmentCount * 4; // 4 verts per face
