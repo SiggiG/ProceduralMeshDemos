@@ -9,7 +9,7 @@ ASimpleCubeActor::ASimpleCubeActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetSerializeFlag(false);
+	StaticProvider->SetShouldSerializeMeshData(false);
 }
 
 void ASimpleCubeActor::OnConstruction(const FTransform& Transform)

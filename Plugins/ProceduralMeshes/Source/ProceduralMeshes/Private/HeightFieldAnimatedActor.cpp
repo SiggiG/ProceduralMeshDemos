@@ -9,7 +9,7 @@ AHeightFieldAnimatedActor::AHeightFieldAnimatedActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetSerializeFlag(false);
+	StaticProvider->SetShouldSerializeMeshData(false);
 }
 
 void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
