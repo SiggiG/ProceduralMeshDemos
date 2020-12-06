@@ -1,4 +1,4 @@
-// Copyright 2016-2020 Chris Conway (Koderz). All Rights Reserved.
+// Copyright 2016-2020 TriAxis Games L.L.C. All Rights Reserved.
 
 #include "Components/RuntimeMeshComponentStatic.h"
 #include "Providers/RuntimeMeshProviderStatic.h"
@@ -22,6 +22,7 @@ void URuntimeMeshComponentStatic::OnRegister()
 	else
 	{
 		Initialize(StaticProvider);
+		RuntimeMesh = GetRuntimeMesh();
 	}
 
 	Super::OnRegister();
@@ -102,6 +103,11 @@ void URuntimeMeshComponentStatic::UpdateSectionFromComponents(int32 LODIndex, in
 void URuntimeMeshComponentStatic::ClearSection(int32 LODIndex, int32 SectionId)
 {
 	StaticProvider->ClearSection(LODIndex, SectionId);
+}
+
+void URuntimeMeshComponentStatic::RemoveSection(int32 LODIndex, int32 SectionId)
+{
+	StaticProvider->RemoveSection(LODIndex, SectionId);
 }
 
 void URuntimeMeshComponentStatic::SetCollisionSettings(const FRuntimeMeshCollisionSettings & NewCollisionSettings)
