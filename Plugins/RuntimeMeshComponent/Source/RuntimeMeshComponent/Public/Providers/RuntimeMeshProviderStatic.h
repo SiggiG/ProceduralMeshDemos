@@ -1,4 +1,4 @@
-// Copyright 2016-2020 Chris Conway (Koderz). All Rights Reserved.
+// Copyright 2016-2020 TriAxis Games L.L.C. All Rights Reserved.
 
 #pragma once
 
@@ -38,6 +38,7 @@ private:
 	FBoxSphereBounds CombinedBounds;
 	
 	TArray<FRuntimeMeshMaterialSlot> LoadedMaterialSlots;
+
 
 	UPROPERTY(VisibleAnywhere, Category = "RuntimeMesh|Providers|Static")
 	TArray<URuntimeMeshModifier*> CurrentMeshModifiers;
@@ -317,7 +318,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "RuntimeMesh|Providers|Static")
 	FRuntimeMeshRenderableMeshData GetSectionRenderDataAndClear(int32 LODIndex, int32 SectionId);
-
+	
 	UFUNCTION(BlueprintCallable, Category = "RuntimeMesh|Providers|Static")
 	void SetShouldSerializeMeshData(bool bIsSerialized);
 
@@ -330,6 +331,7 @@ public:
 	virtual bool HasCollisionMesh() override;
 	virtual bool GetCollisionMesh(FRuntimeMeshCollisionData& CollisionData) override;
 
+
 public:
 	virtual void ConfigureLODs(const TArray<FRuntimeMeshLODProperties>& LODSettings) override;
 	virtual void SetLODScreenSize(int32 LODIndex, float ScreenSize) override;
@@ -338,6 +340,7 @@ public:
 	virtual void SetSectionCastsShadow(int32 LODIndex, int32 SectionId, bool bCastsShadow) override;
 	virtual void ClearSection(int32 LODIndex, int32 SectionId) override;
 	virtual void RemoveSection(int32 LODIndex, int32 SectionId) override;
+
 
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void BeginDestroy() override;
