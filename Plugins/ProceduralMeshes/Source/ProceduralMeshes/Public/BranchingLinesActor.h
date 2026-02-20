@@ -1,11 +1,12 @@
-// Copyright Sigurdur Gunnarsson. All Rights Reserved. 
-// Licensed under the MIT License. See LICENSE file in the project root for full license information. 
+// Copyright Sigurdur Gunnarsson. All Rights Reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // Example branching lines using cylinder strips
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RuntimeMeshActor.h"
+#include "GameFramework/Actor.h"
+#include "RuntimeProceduralMeshComponent.h"
 #include "BranchingLinesActor.generated.h"
 
 // A simple struct to keep some data together
@@ -60,7 +61,7 @@ struct FBranchSegment
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ABranchingLinesActor : public ARuntimeMeshActor
+class PROCEDURALMESHES_API ABranchingLinesActor : public AActor
 {
 	GENERATED_BODY()
 
@@ -114,7 +115,7 @@ public:
 	float ForkRotationMin = 5.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
-	float ForkRotationMax = 40.0f;	
+	float ForkRotationMax = 40.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
@@ -124,40 +125,31 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
-	URuntimeMeshProviderStatic* StaticProvider;
+	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
 	void GenerateMesh();
 	void CreateSegments();
 
-	UPROPERTY(Transient)
 	TArray<FBranchSegment> Segments;
 
-	void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals = true);
+	void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals = true);
 
 	static FVector RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles);
 	void PreCacheCrossSection();
 
 	int32 LastCachedCrossSectionCount;
-	UPROPERTY(Transient)
 	TArray<FVector> CachedCrossSectionPoints;
 
-	UPROPERTY(Transient)
 	TArray<FVector> OffsetDirections;
 
-	UPROPERTY(Transient)
 	FRandomStream RngStream;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	UPROPERTY(Transient)
 	TArray<FVector> Positions;
-	UPROPERTY(Transient)
 	TArray<int32> Triangles;
-	UPROPERTY(Transient)
 	TArray<FVector> Normals;
-	UPROPERTY(Transient)
-	TArray<FRuntimeMeshTangent> Tangents;
-	UPROPERTY(Transient)
+	TArray<FProcMeshTangent> Tangents;
 	TArray<FVector2D> TexCoords;
 };

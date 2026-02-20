@@ -3,14 +3,13 @@
 // Example Sierpinski tetrahedron
 
 #include "SierpinskiTetrahedron.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 
 ASierpinskiTetrahedron::ASierpinskiTetrahedron()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void ASierpinskiTetrahedron::OnConstruction(const FTransform& Transform)
@@ -19,7 +18,6 @@ void ASierpinskiTetrahedron::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void ASierpinskiTetrahedron::PostLoad()
 {
 	Super::PostLoad();
@@ -55,8 +53,12 @@ void ASierpinskiTetrahedron::SetupMeshBuffers()
 
 void ASierpinskiTetrahedron::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
 	SetupMeshBuffers();
 
 	// -------------------------------------------------------
@@ -64,7 +66,7 @@ void ASierpinskiTetrahedron::GenerateMesh()
 	// 0,0 is center bottom.. so first two are offset half Size to the sides, and the 3rd straight up
 	const FVector BottomLeftPoint = FVector(0, -0.5f * Size, 0);
 	const FVector BottomRightPoint = FVector(0, 0.5f * Size, 0);
-	const float ThirdBasePointDistance = FMath::Sqrt(3) * Size / 2;
+	const float ThirdBasePointDistance = FMath::Sqrt(3.f) * Size / 2;
 	const FVector BottomMiddlePoint = FVector(ThirdBasePointDistance, 0, 0);
 	const float CenterPosX = FMath::Tan(FMath::DegreesToRadians(30)) * (Size / 2.0f);
 	const FVector TopPoint = FVector(CenterPosX, 0, ThirdBasePointDistance);
@@ -77,12 +79,11 @@ void ASierpinskiTetrahedron::GenerateMesh()
 	PrecalculateTetrahedronSideQuads();
 	GenerateTetrahedron(FirstTetrahedron, 0, Positions, Triangles, Normals, Tangents, TexCoords, VertexIndex, TriangleIndex);
 
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("PyramidMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
-void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const
+void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const
 {
 	if (InDepth > Iterations)
 	{
@@ -144,7 +145,7 @@ void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Te
 	}
 }
 
-void ASierpinskiTetrahedron::AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
+void ASierpinskiTetrahedron::AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
 {
 	AddPolygon(Tetrahedron.BottomFaceLeftPoint, Tetrahedron.BottomFaceLeftPointUV, Tetrahedron.BottomFaceRightPoint, Tetrahedron.BottomFaceRightPointUV, Tetrahedron.BottomFaceTopPoint, Tetrahedron.BottomFaceTopPointUV, Tetrahedron.BottomFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
 	AddPolygon(Tetrahedron.FrontFaceLeftPoint, Tetrahedron.FrontFaceLeftPointUV, Tetrahedron.FrontFaceRightPoint, Tetrahedron.FrontFaceRightPointUV, Tetrahedron.FrontFaceTopPoint, Tetrahedron.FrontFaceTopPointUV, Tetrahedron.FrontFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
@@ -152,7 +153,7 @@ void ASierpinskiTetrahedron::AddTetrahedronPolygons(const FTetrahedronStructure&
 	AddPolygon(Tetrahedron.RightFaceLeftPoint, Tetrahedron.RightFaceLeftPointUV, Tetrahedron.RightFaceRightPoint, Tetrahedron.RightFaceRightPointUV, Tetrahedron.RightFaceTopPoint, Tetrahedron.RightFaceTopPointUV, Tetrahedron.RightFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
 }
 
-void ASierpinskiTetrahedron::AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, const FVector FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
+void ASierpinskiTetrahedron::AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, const FVector FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
 {
 	// Reserve indexes and assign the vertices
 	const int32 Point1Index = VertexIndex++;
@@ -177,7 +178,8 @@ void ASierpinskiTetrahedron::AddPolygon(const FVector& Point1, const FVector2D& 
 	InNormals[Point1Index] = InNormals[Point2Index] = InNormals[Point3Index] = FaceNormal;
 
 	// Tangents (perpendicular to the surface)
-	const FVector SurfaceTangent = (InVertices[Point1Index] - InVertices[Point2Index]).GetSafeNormal();
+	const FVector SurfaceTangentVec = (InVertices[Point1Index] - InVertices[Point2Index]).GetSafeNormal();
+	const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
 	InTangents[Point1Index] = InTangents[Point2Index] = InTangents[Point3Index] = SurfaceTangent;
 }
 

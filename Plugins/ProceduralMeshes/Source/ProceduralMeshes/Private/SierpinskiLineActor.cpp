@@ -3,13 +3,12 @@
 // Example Sierpinski pyramid using cylinder lines
 
 #include "SierpinskiLineActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 ASierpinskiLineActor::ASierpinskiLineActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
@@ -20,7 +19,6 @@ void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void ASierpinskiLineActor::PostLoad()
 {
 	Super::PostLoad();
@@ -57,8 +55,12 @@ void ASierpinskiLineActor::SetupMeshBuffers()
 
 void ASierpinskiLineActor::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
 	SetupMeshBuffers();
 
 	// -------------------------------------------------------
@@ -71,9 +73,8 @@ void ASierpinskiLineActor::GenerateMesh()
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Lines[i].Start, Lines[i].End, Lines[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
 	}
 	
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("PyramidMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
 FVector ASierpinskiLineActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)
@@ -113,7 +114,7 @@ void ASierpinskiLineActor::GenerateLines()
 	// 0,0 is center bottom.. so first two are offset half Size to the sides, and the 3rd straight up
 	const FVector BottomLeftPoint = FVector(0, -0.5f * Size, 0);
 	const FVector BottomRightPoint = FVector(0, 0.5f * Size, 0);
-	const float ThirdBasePointDistance = FMath::Sqrt(3) * Size / 2;
+	const float ThirdBasePointDistance = FMath::Sqrt(3.f) * Size / 2;
 	const FVector BottomMiddlePoint = FVector(ThirdBasePointDistance, 0, 0);
 	const float CenterPosX = FMath::Tan(FMath::DegreesToRadians(30)) * (Size / 2.0f);
 	const FVector TopPoint = FVector(CenterPosX, 0, ThirdBasePointDistance);
@@ -184,7 +185,7 @@ void ASierpinskiLineActor::AddSection(const FVector InBottomLeftPoint, const FVe
 	AddSection(BottomLeftPoint, MiddlePointUp, BottomRightPoint, InBottomMiddlePoint, InDepth + 1); // Lower middle pyramid
 }
 
-void ASierpinskiLineActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& VertexIndex, int32& TriangleIndex, const bool bInSmoothNormals/* = true*/)
+void ASierpinskiLineActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& VertexIndex, int32& TriangleIndex, const bool bInSmoothNormals/* = true*/)
 {
 	// Make a cylinder section
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(InCrossSectionCount)) * PI;
@@ -274,7 +275,8 @@ void ASierpinskiLineActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		}
 
 		// Tangents (perpendicular to the surface)
-		const FVector SurfaceTangent = (P0 - P1).GetSafeNormal();
+		const FVector SurfaceTangentVec = (P0 - P1).GetSafeNormal();
+		const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
 		InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangent;
 	}
 }

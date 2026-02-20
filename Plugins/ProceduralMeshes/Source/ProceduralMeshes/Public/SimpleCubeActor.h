@@ -1,18 +1,16 @@
-// Copyright Sigurdur Gunnarsson. All Rights Reserved. 
-// Licensed under the MIT License. See LICENSE file in the project root for full license information. 
+// Copyright Sigurdur Gunnarsson. All Rights Reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // Example cube mesh
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RuntimeMeshActor.h"
+#include "GameFramework/Actor.h"
+#include "RuntimeProceduralMeshComponent.h"
 #include "SimpleCubeActor.generated.h"
 
-class URuntimeMeshProviderStatic;
-struct FRuntimeMeshTangent;
-
 UCLASS()
-class PROCEDURALMESHES_API ASimpleCubeActor : public ARuntimeMeshActor
+class PROCEDURALMESHES_API ASimpleCubeActor : public AActor
 {
 	GENERATED_BODY()
 
@@ -30,23 +28,18 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
-	URuntimeMeshProviderStatic* StaticProvider;
+	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
 	void GenerateMesh();
-	static void GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector InSize);
-	static void BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FRuntimeMeshTangent Tangent);
+	static void GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, FVector InSize);
+	static void BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FProcMeshTangent Tangent);
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	UPROPERTY(Transient)
 	TArray<FVector> Positions;
-	UPROPERTY(Transient)
 	TArray<int32> Triangles;
-	UPROPERTY(Transient)
 	TArray<FVector> Normals;
-	UPROPERTY(Transient)
-	TArray<FRuntimeMeshTangent> Tangents;
-	UPROPERTY(Transient)
+	TArray<FProcMeshTangent> Tangents;
 	TArray<FVector2D> TexCoords;
 };

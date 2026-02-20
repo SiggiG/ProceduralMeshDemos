@@ -3,13 +3,12 @@
 // Example cylinder mesh
 
 #include "SimpleCylinderActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 ASimpleCylinderActor::ASimpleCylinderActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
@@ -18,7 +17,6 @@ void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void ASimpleCylinderActor::PostLoad()
 {
 	Super::PostLoad();
@@ -67,9 +65,13 @@ void ASimpleCylinderActor::SetupMeshBuffers()
 
 void ASimpleCylinderActor::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
-	
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
+
 	if (Height <= 0)
 	{
 		return;
@@ -78,12 +80,11 @@ void ASimpleCylinderActor::GenerateMesh()
 	SetupMeshBuffers();
 	GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Height, Radius, RadialSegmentCount, bCapEnds, bDoubleSided, bSmoothNormals);
 
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("CylinderMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
-void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds, const bool bInDoubleSided, const bool bInSmoothNormals/* = true*/)
+void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds, const bool bInDoubleSided, const bool bInSmoothNormals/* = true*/)
 {
 	// -------------------------------------------------------
 	// Basic setup
@@ -169,7 +170,8 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		}
 
 		// Tangents (perpendicular to the surface)
-		const FVector SurfaceTangent = (P0 - P1).GetSafeNormal();
+		const FVector SurfaceTangentVec = (P0 - P1).GetSafeNormal();
+		const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
 		InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangent;
 
 		// -------------------------------------------------------
@@ -205,7 +207,8 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = InNormals[VertIndex4] = NormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			const FVector SurfaceTangentDbl = (P0 - P1).GetSafeNormal();
+			const FVector SurfaceTangentDblVec = (P0 - P1).GetSafeNormal();
+			const FProcMeshTangent SurfaceTangentDbl(SurfaceTangentDblVec, /*bFlipTangentY=*/ false);
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangentDbl;
 		}
 
@@ -215,7 +218,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		if (QuadIndex != 0 && QuadIndex != InCrossSectionCount - 1 && bInCapEnds)
 		{
 			// Bottom cap
-			FVector CapVertex0 = FVector(FMath::Cos(0) * InWidth, FMath::Sin(0) * InWidth, 0.f);
+			FVector CapVertex0 = FVector(FMath::Cos(0.f) * InWidth, FMath::Sin(0.f) * InWidth, 0.f);
 			FVector CapVertex1 = FVector(FMath::Cos(Angle) * InWidth, FMath::Sin(Angle) * InWidth, 0.f);
 			FVector CapVertex2 = FVector(FMath::Cos(NextAngle) * InWidth, FMath::Sin(NextAngle) * InWidth, 0.f);
 
@@ -230,7 +233,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InTriangles[TriangleIndex++] = VertIndex2;
 			InTriangles[TriangleIndex++] = VertIndex3;
 
-			InTexCoords[VertIndex1] = FVector2D(0.5f - (FMath::Cos(0) / 2.0f), 0.5f - (FMath::Sin(0) / 2.0f));
+			InTexCoords[VertIndex1] = FVector2D(0.5f - (FMath::Cos(0.f) / 2.0f), 0.5f - (FMath::Sin(0.f) / 2.0f));
 			InTexCoords[VertIndex2] = FVector2D(0.5f - (FMath::Cos(-Angle) / 2.0f), 0.5f - (FMath::Sin(-Angle) / 2.0f));
 			InTexCoords[VertIndex3] = FVector2D(0.5f - (FMath::Cos(-NextAngle) / 2.0f), 0.5f - (FMath::Sin(-NextAngle) / 2.0f));
 
@@ -238,7 +241,8 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = CapNormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			FVector SurfaceTangentCap = (P0 - P1).GetSafeNormal();
+			FVector SurfaceTangentCapVec = (P0 - P1).GetSafeNormal();
+			const FProcMeshTangent SurfaceTangentCap(SurfaceTangentCapVec, /*bFlipTangentY=*/ false);
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCap;
 
 			// Top cap
@@ -257,7 +261,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InTriangles[TriangleIndex++] = VertIndex2;
 			InTriangles[TriangleIndex++] = VertIndex1;
 
-			InTexCoords[VertIndex1] = FVector2D(0.5f - (FMath::Cos(0) / 2.0f), 0.5f - (FMath::Sin(0) / 2.0f));
+			InTexCoords[VertIndex1] = FVector2D(0.5f - (FMath::Cos(0.f) / 2.0f), 0.5f - (FMath::Sin(0.f) / 2.0f));
 			InTexCoords[VertIndex2] = FVector2D(0.5f - (FMath::Cos(Angle) / 2.0f), 0.5f - (FMath::Sin(Angle) / 2.0f));
 			InTexCoords[VertIndex3] = FVector2D(0.5f - (FMath::Cos(NextAngle) / 2.0f), 0.5f - (FMath::Sin(NextAngle) / 2.0f));
 
@@ -265,8 +269,9 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = CapNormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			SurfaceTangentCap = (P0 - P1).GetSafeNormal();
-			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCap;
+			SurfaceTangentCapVec = (P0 - P1).GetSafeNormal();
+			const FProcMeshTangent SurfaceTangentCapB(SurfaceTangentVec, /*bFlipTangentY=*/ false);
+			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCapB;
 		}
 	}
 }

@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "GameFramework/GameMode.h"
+#include "GameFramework/GameModeBase.h"
 #include "ProceduralMeshDemosGameMode.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class PROCEDURALMESHDEMOS_API AProceduralMeshDemosGameMode : public AGameMode
+class PROCEDURALMESHDEMOS_API AProceduralMeshDemosGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 	

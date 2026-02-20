@@ -1,15 +1,16 @@
-// Copyright Sigurdur Gunnarsson. All Rights Reserved. 
-// Licensed under the MIT License. See LICENSE file in the project root for full license information. 
+// Copyright Sigurdur Gunnarsson. All Rights Reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // Example heightfield generated with noise
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RuntimeMeshActor.h"
+#include "GameFramework/Actor.h"
+#include "RuntimeProceduralMeshComponent.h"
 #include "HeightFieldNoiseActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API AHeightFieldNoiseActor : public ARuntimeMeshActor
+class PROCEDURALMESHES_API AHeightFieldNoiseActor : public AActor
 {
 	GENERATED_BODY()
 
@@ -36,29 +37,22 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
-	URuntimeMeshProviderStatic* StaticProvider;
+	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
 	void GenerateMesh();
 	void GeneratePoints();
-	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
+	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
 
-	UPROPERTY(Transient)
 	FRandomStream RngStream;
 
-	UPROPERTY(Transient)
 	TArray<float> HeightValues;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	UPROPERTY(Transient)
 	TArray<FVector> Positions;
-	UPROPERTY(Transient)
 	TArray<int32> Triangles;
-	UPROPERTY(Transient)
 	TArray<FVector> Normals;
-	UPROPERTY(Transient)
-	TArray<FRuntimeMeshTangent> Tangents;
-	UPROPERTY(Transient)
+	TArray<FProcMeshTangent> Tangents;
 	TArray<FVector2D> TexCoords;
 };

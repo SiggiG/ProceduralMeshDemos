@@ -1,11 +1,12 @@
-// Copyright Sigurdur Gunnarsson. All Rights Reserved. 
-// Licensed under the MIT License. See LICENSE file in the project root for full license information. 
+// Copyright Sigurdur Gunnarsson. All Rights Reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // Example Sierpinski tetrahedron
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RuntimeMeshActor.h"
+#include "GameFramework/Actor.h"
+#include "RuntimeProceduralMeshComponent.h"
 #include "SierpinskiTetrahedron.generated.h"
 
 UENUM(BlueprintType)
@@ -88,7 +89,7 @@ struct FTetrahedronStructure
 		LeftFaceRightPointUV = FVector2D(1, 1);
 		LeftFaceTopPoint = CornerTop;
 		LeftFaceTopPointUV = FVector2D(0.5f, 0);
-		
+
 		LeftFaceNormal = FVector::CrossProduct(LeftFaceTopPoint - LeftFaceLeftPoint, LeftFaceRightPoint - LeftFaceLeftPoint).GetSafeNormal();
 
 		RightFaceLeftPoint = CornerBottomRight;
@@ -97,7 +98,7 @@ struct FTetrahedronStructure
 		RightFaceRightPointUV = FVector2D(1, 1);
 		RightFaceTopPoint = CornerTop;
 		RightFaceTopPointUV = FVector2D(0.5f, 0);
-		
+
 		RightFaceNormal = FVector::CrossProduct(RightFaceTopPoint - RightFaceLeftPoint, RightFaceRightPoint - RightFaceLeftPoint).GetSafeNormal();
 
 		BottomFaceLeftPoint = CornerBottomRight;
@@ -106,17 +107,17 @@ struct FTetrahedronStructure
 		BottomFaceRightPointUV = FVector2D(1, 1);
 		BottomFaceTopPoint = CornerBottomMiddle;
 		BottomFaceTopPointUV = FVector2D(0.5f, 0);
-		
+
 		BottomFaceNormal = FVector::CrossProduct(BottomFaceTopPoint - BottomFaceLeftPoint, BottomFaceRightPoint - BottomFaceLeftPoint).GetSafeNormal();
 	}
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ASierpinskiTetrahedron : public ARuntimeMeshActor
+class PROCEDURALMESHES_API ASierpinskiTetrahedron : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	ASierpinskiTetrahedron();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
@@ -133,32 +134,26 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
-	URuntimeMeshProviderStatic* StaticProvider;
+	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
 
 	void GenerateMesh();
-	
-	void GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const;
-	static void AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
-	static void AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, FVector const FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
+
+	void GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const;
+	static void AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
+	static void AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, FVector const FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
 	void SetTetrahedronUV(FTetrahedronStructure& Tetrahedron) const;
 	FVector2D GetUVForSide(const FVector Point, const ETetrahedronSide Side) const;
 
-	UPROPERTY(Transient)
 	FTetrahedronStructure FirstTetrahedron;
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	UPROPERTY(Transient)
 	TArray<FVector> Positions;
-	UPROPERTY(Transient)
 	TArray<int32> Triangles;
-	UPROPERTY(Transient)
 	TArray<FVector> Normals;
-	UPROPERTY(Transient)
-	TArray<FRuntimeMeshTangent> Tangents;
-	UPROPERTY(Transient)
+	TArray<FProcMeshTangent> Tangents;
 	TArray<FVector2D> TexCoords;
 
 	// Pre-calculated vectors that define a quad for each tetrahedron side

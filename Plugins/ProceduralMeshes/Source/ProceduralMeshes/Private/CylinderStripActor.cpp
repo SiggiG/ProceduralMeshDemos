@@ -3,13 +3,12 @@
 // Example cylinder strip mesh
 
 #include "CylinderStripActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 ACylinderStripActor::ACylinderStripActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void ACylinderStripActor::OnConstruction(const FTransform& Transform)
@@ -19,7 +18,6 @@ void ACylinderStripActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void ACylinderStripActor::PostLoad()
 {
 	Super::PostLoad();
@@ -56,9 +54,13 @@ void ACylinderStripActor::SetupMeshBuffers()
 
 void ACylinderStripActor::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
-	
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
+
 	if (LinePoints.Num() < 2)
 	{
 		return;
@@ -76,9 +78,8 @@ void ACylinderStripActor::GenerateMesh()
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, LinePoints[i], LinePoints[i + 1], Radius, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
 	}
 
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("CylinderMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
 FVector ACylinderStripActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)
@@ -109,7 +110,7 @@ void ACylinderStripActor::PreCacheCrossSection()
 	LastCachedCrossSectionCount = RadialSegmentCount;
 }
 
-void ACylinderStripActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals/* = true*/)
+void ACylinderStripActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals/* = true*/)
 {
 	// Make a cylinder section
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(InCrossSectionCount)) * PI;
@@ -199,7 +200,8 @@ void ACylinderStripActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<i
 		}
 
 		// Tangents (perpendicular to the surface)
-		const FVector SurfaceTangent = (P0 - P1).GetSafeNormal();
+		const FVector SurfaceTangentVec = (P0 - P1).GetSafeNormal();
+		const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
 		InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangent;
 	}
 }

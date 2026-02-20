@@ -3,13 +3,12 @@
 // Example branching lines using cylinder strips
 
 #include "BranchingLinesActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 ABranchingLinesActor::ABranchingLinesActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 
 	// Setup random offset directions
 	OffsetDirections.Add(FVector(1, 0, 0));
@@ -23,7 +22,6 @@ void ABranchingLinesActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void ABranchingLinesActor::PostLoad()
 {
 	Super::PostLoad();
@@ -59,13 +57,17 @@ void ABranchingLinesActor::SetupMeshBuffers()
 
 void ABranchingLinesActor::GenerateMesh()
 {
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
 	// -------------------------------------------------------
 	// Setup the random number generator and create the branching structure
 	RngStream.Initialize(RandomSeed);
 	CreateSegments();
 
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
+	MeshComponent->ClearAllMeshSections();
 	SetupMeshBuffers();
 
 	// -------------------------------------------------------
@@ -78,9 +80,8 @@ void ABranchingLinesActor::GenerateMesh()
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Segments[i].Start, Segments[i].End, Segments[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
 	}
 
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("BranchingLinesMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
 FVector ABranchingLinesActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)
@@ -167,7 +168,7 @@ void ABranchingLinesActor::CreateSegments()
 	}
 }
 
-void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals/* = true*/)
+void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals/* = true*/)
 {
 	// Make a cylinder section
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(InCrossSectionCount)) * PI;
@@ -257,7 +258,8 @@ void ABranchingLinesActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 		}
 
 		// Tangents (perpendicular to the surface)
-		const FVector SurfaceTangent = (P0 - P1).GetSafeNormal();
+		const FVector SurfaceTangentVec = (P0 - P1).GetSafeNormal();
+		const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
 		InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = InTangents[VertIndex4] = SurfaceTangent;
 	}
 }

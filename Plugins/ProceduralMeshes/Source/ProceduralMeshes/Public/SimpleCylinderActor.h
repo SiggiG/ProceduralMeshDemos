@@ -1,15 +1,16 @@
-// Copyright Sigurdur Gunnarsson. All Rights Reserved. 
-// Licensed under the MIT License. See LICENSE file in the project root for full license information. 
+// Copyright Sigurdur Gunnarsson. All Rights Reserved.
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // Example cylinder mesh
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RuntimeMeshActor.h"
+#include "GameFramework/Actor.h"
+#include "RuntimeProceduralMeshComponent.h"
 #include "SimpleCylinderActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API ASimpleCylinderActor : public ARuntimeMeshActor
+class PROCEDURALMESHES_API ASimpleCylinderActor : public AActor
 {
 	GENERATED_BODY()
 
@@ -42,23 +43,18 @@ public:
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
-	URuntimeMeshProviderStatic* StaticProvider;
+	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
 
 	void GenerateMesh();
-	static void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds = false, const bool bInDoubleSided = false, const bool bInSmoothNormals = true);
+	static void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds = false, const bool bInDoubleSided = false, const bool bInSmoothNormals = true);
 
 	// Mesh buffers
 	void SetupMeshBuffers();
-	UPROPERTY(Transient)
 	TArray<FVector> Positions;
-	UPROPERTY(Transient)
 	TArray<int32> Triangles;
-	UPROPERTY(Transient)
 	TArray<FVector> Normals;
-	UPROPERTY(Transient)
-	TArray<FRuntimeMeshTangent> Tangents;
-	UPROPERTY(Transient)
+	TArray<FProcMeshTangent> Tangents;
 	TArray<FVector2D> TexCoords;
 };

@@ -3,13 +3,12 @@
 // Example heightfield generated with noise
 
 #include "HeightFieldNoiseActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 AHeightFieldNoiseActor::AHeightFieldNoiseActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void AHeightFieldNoiseActor::OnConstruction(const FTransform& Transform)
@@ -18,7 +17,6 @@ void AHeightFieldNoiseActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void AHeightFieldNoiseActor::PostLoad()
 {
 	Super::PostLoad();
@@ -72,9 +70,13 @@ void AHeightFieldNoiseActor::GeneratePoints()
 
 void AHeightFieldNoiseActor::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
-	
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
+
 	if (Size.X < 1 || Size.Y < 1 || LengthSections < 1 || WidthSections < 1)
 	{
 		return;
@@ -84,12 +86,11 @@ void AHeightFieldNoiseActor::GenerateMesh()
 	GeneratePoints();
 	GenerateGrid(Positions, Triangles, Normals, Tangents, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("CylinderMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
-void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
+void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
 {
 	// Note the coordinates are a bit weird here since I aligned it to the transform (X is forwards or "up", which Y is to the right)
 	// Should really fix this up and use standard X, Y coords then transform into object space?
@@ -145,7 +146,8 @@ void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<in
 			InNormals[BottomLeftIndex] = InNormals[BottomRightIndex] = InNormals[TopRightIndex] = InNormals[TopLeftIndex] = NormalCurrent;
 
 			// Tangents (perpendicular to the surface)
-			const FVector SurfaceTangent = (PBottomLeft - PBottomRight).GetSafeNormal();
+			const FVector SurfaceTangentVec = (PBottomLeft - PBottomRight).GetSafeNormal();
+			const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
 			InTangents[BottomLeftIndex] = InTangents[BottomRightIndex] = InTangents[TopRightIndex] = InTangents[TopLeftIndex] = SurfaceTangent;
 		}
 	}

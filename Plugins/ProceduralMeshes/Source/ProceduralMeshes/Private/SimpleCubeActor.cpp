@@ -3,13 +3,12 @@
 // Example cube mesh
 
 #include "SimpleCubeActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 ASimpleCubeActor::ASimpleCubeActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void ASimpleCubeActor::OnConstruction(const FTransform& Transform)
@@ -18,7 +17,6 @@ void ASimpleCubeActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void ASimpleCubeActor::PostLoad()
 {
 	Super::PostLoad();
@@ -51,17 +49,20 @@ void ASimpleCubeActor::SetupMeshBuffers()
 
 void ASimpleCubeActor::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
 	SetupMeshBuffers();
 	GenerateCube(Positions, Triangles, Normals, Tangents, TexCoords, Size);
 
-	const TArray<FColor> EmptyColors{};
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, Tangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("CubeMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
-void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector InSize)
+void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector InSize)
 {
 	// NOTE: Unreal uses an upper-left origin UV
 	// NOTE: This sample uses a simple UV mapping scheme where each face is the same
@@ -87,40 +88,40 @@ void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& 
 	int32 VertexOffset = 0;
 	int32 TriangleOffset = 0;
 	FVector Normal;
-	FRuntimeMeshTangent Tangent;
+	FProcMeshTangent Tangent;
 
  	// Front (+X) face: 0-1-2-3
 	Normal = FVector(1, 0, 0);
-	Tangent = FVector(0, 1, 0);
+	Tangent = FProcMeshTangent(FVector(0, 1, 0), false);
 	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P0, P1, P2, P3, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Back (-X) face: 5-4-7-6
 	Normal = FVector(-1, 0, 0);
-	Tangent = FVector(0, -1, 0);
+	Tangent = FProcMeshTangent(FVector(0, -1, 0), false);
 	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P5, P4, P7, P6, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Left (-Y) face: 1-5-6-2
 	Normal = FVector(0, -1, 0);
-	Tangent = FVector(1, 0, 0);
+	Tangent = FProcMeshTangent(FVector(1, 0, 0), false);
 	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P1, P5, P6, P2, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Right (+Y) face: 4-0-3-7
 	Normal = FVector(0, 1, 0);
-	Tangent = FVector(-1, 0, 0);
+	Tangent = FProcMeshTangent(FVector(-1, 0, 0), false);
 	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P4, P0, P3, P7, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Top (+Z) face: 6-7-3-2
 	Normal = FVector(0, 0, 1);
-	Tangent = FVector(0, 1, 0);
+	Tangent = FProcMeshTangent(FVector(0, 1, 0), false);
 	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P6, P7, P3, P2, VertexOffset, TriangleOffset, Normal, Tangent);
 
  	// Bottom (-Z) face: 1-0-4-5
 	Normal = FVector(0, 0, -1);
-	Tangent = FVector(0, -1, 0);
+	Tangent = FProcMeshTangent(FVector(0, -1, 0), false);
 	BuildQuad(InVertices, InTriangles, InNormals, InTangents, InTexCoords, P1, P0, P4, P5, VertexOffset, TriangleOffset, Normal, Tangent);
 }
 
-void ASimpleCubeActor::BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FRuntimeMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FRuntimeMeshTangent Tangent)
+void ASimpleCubeActor::BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FProcMeshTangent Tangent)
 {
 	const int32 Index1 = VertexOffset++;
 	const int32 Index2 = VertexOffset++;

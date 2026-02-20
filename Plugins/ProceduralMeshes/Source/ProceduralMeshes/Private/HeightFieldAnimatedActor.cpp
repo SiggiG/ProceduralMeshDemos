@@ -3,13 +3,12 @@
 // Example heightfield grid animated with sine and cosine waves
 
 #include "HeightFieldAnimatedActor.h"
-#include "Providers/RuntimeMeshProviderStatic.h"
 
 AHeightFieldAnimatedActor::AHeightFieldAnimatedActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	StaticProvider = CreateDefaultSubobject<URuntimeMeshProviderStatic>(TEXT("RuntimeMeshProvider-Static"));
-	StaticProvider->SetShouldSerializeMeshData(false);
+	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
+	SetRootComponent(MeshComponent);
 }
 
 void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
@@ -18,7 +17,6 @@ void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 	GenerateMesh();
 }
 
-// This is called when actor is already in level and map is opened
 void AHeightFieldAnimatedActor::PostLoad()
 {
 	Super::PostLoad();
@@ -91,9 +89,13 @@ void AHeightFieldAnimatedActor::Tick(float DeltaSeconds)
 
 void AHeightFieldAnimatedActor::GenerateMesh()
 {
-	GetRuntimeMeshComponent()->Initialize(StaticProvider);
-	StaticProvider->ClearSection(0, 0);
-	
+	if (!IsValid(MeshComponent))
+	{
+		return;
+	}
+
+	MeshComponent->ClearAllMeshSections();
+
 	if (Size.X < 1 || Size.Y < 1 || LengthSections < 1 || WidthSections < 1)
 	{
 		return;
@@ -104,10 +106,8 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 
 	// TODO Convert this to use fast-past updates instead of regenerating the mesh every frame
 	GenerateGrid(Positions, Triangles, Normals, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
-	const TArray<FColor> EmptyColors{};
-	const TArray<FRuntimeMeshTangent> EmptyTangents;
-	StaticProvider->CreateSectionFromComponents(0, 0, 0, Positions, Triangles, Normals, TexCoords, EmptyColors, EmptyTangents, ERuntimeMeshUpdateFrequency::Infrequent, false);
-	StaticProvider->SetupMaterialSlot(0, TEXT("CylinderMaterial"), Material);
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, {}, false);
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void AHeightFieldAnimatedActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
