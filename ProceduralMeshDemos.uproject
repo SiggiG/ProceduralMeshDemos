@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "4.26",
+	"EngineAssociation": "5.7",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -12,12 +12,8 @@
 	],
 	"Plugins": [
 		{
-			"Name": "OculusVR",
-			"Enabled": false
-		},
-		{
-			"Name": "SteamVR",
-			"Enabled": false
+			"Name": "ProceduralMeshComponent",
+			"Enabled": true
 		}
 	]
 }

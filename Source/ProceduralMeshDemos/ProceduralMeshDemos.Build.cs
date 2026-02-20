@@ -8,7 +8,7 @@ public class ProceduralMeshDemos : ModuleRules
     {
 	    PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	    
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshes", "RuntimeMeshComponent" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshComponent" });
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
     }
 }
