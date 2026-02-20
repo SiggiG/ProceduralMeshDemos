@@ -1,5 +1,5 @@
 
-# Procedural mesh examples for Unreal 4
+# Procedural mesh examples for Unreal 5
 
 ![procexamples](https://cloud.githubusercontent.com/assets/7083424/15453990/b929700a-2022-11e6-8851-6566da93c5f5.jpg)
 
@@ -18,8 +18,15 @@ There is a lot of code duplication between the different examples which I felt w
 
 PLEASE NOTE: I update these examples from time to time to follow the latest Unreal versions.  If you get really stuck feel free to send a PR or contact me below.
 
+## Unreal Engine update notes
 
-## Explanation of a few Unreal 4 concepts.
+I finally updated the project for Unreal 5 and simplified the project structure
+- Cleanup
+- Made the code simpler by using the normal engine ProceduralMeshComponent.  The other one is faster, but switching made this code example simpler
+- Simplified folder structure, merged Plugin into the main project source.
+- Deleted shadow map, turned on Lumen etc
+
+## Explanation of a few Unreal concepts.
 
 ### Vertices, triangles, UV coordinates, normals and tangents.. oh my!
 Meshes are created by setting up 3d coordinates and then defining polygons between those.
@@ -123,8 +130,8 @@ Using the ProceduralMeshComponent has some limitations as mention above.  I also
 
 If you have any questions, suggestions or want to contribute to this project please contact me at one of these places:
 * You can reach me via email at siggi@siggig.is
-* Message me on the Unreal forums on username SiggiG.
-* Twitter: https://twitter.com/SiggiGG
+* Message me on the Unreal forums on username SiggiG
+* Bsky: https://bsky.app/profile/siggigg.bsky.social
 
 ## License
 MIT License

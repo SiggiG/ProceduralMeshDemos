@@ -65,3 +65,4 @@ DerivedDataCache/*
 .vs/**/*
 .idea/**.*
 .DS_Store
+ProceduralMeshDemos.uproject.DotSettings.user
