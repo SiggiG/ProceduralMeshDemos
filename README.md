@@ -1,7 +1,7 @@
 
 # Procedural mesh examples for Unreal 5
 
-![procexamples](https://cloud.githubusercontent.com/assets/7083424/15453990/b929700a-2022-11e6-8851-6566da93c5f5.jpg)
+<img width="873" height="584" alt="procmesh_project" src="https://github.com/user-attachments/assets/97280641-b40d-4a9a-9244-bb51c048d38f" />
 
 ## Overview
 I've been wanting to learn how to procedurally generate meshes in Unreal for some time now, and have noticed interest from the community as well.
@@ -114,7 +114,6 @@ Grid mesh with an animated Z axis using sine and cosine.
 ##### More examples!
 I want to provide more examples in the future, and would love if members of the community could provide some! Of course you will get full credit for your contributions.
 
-- [ ] Joined cylinders (fast method and properly joined).
 - [ ] Proper UV maps for Sierpinski pyramid and branching lines
 - [ ] Sphere
 - [ ] Sierpinski pyramid without lines
