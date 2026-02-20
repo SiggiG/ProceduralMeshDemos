@@ -61,7 +61,7 @@ struct FBranchSegment
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ABranchingLinesActor : public AActor
+class PROCEDURALMESHDEMOS_API ABranchingLinesActor : public AActor
 {
 	GENERATED_BODY()
 

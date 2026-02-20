@@ -113,7 +113,7 @@ struct FTetrahedronStructure
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ASierpinskiTetrahedron : public AActor
+class PROCEDURALMESHDEMOS_API ASierpinskiTetrahedron : public AActor
 {
 	GENERATED_BODY()
 

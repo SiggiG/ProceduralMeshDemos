@@ -10,7 +10,7 @@
 #include "HeightFieldNoiseActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API AHeightFieldNoiseActor : public AActor
+class PROCEDURALMESHDEMOS_API AHeightFieldNoiseActor : public AActor
 {
 	GENERATED_BODY()
 

@@ -10,7 +10,7 @@
 #include "SimpleCubeActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API ASimpleCubeActor : public AActor
+class PROCEDURALMESHDEMOS_API ASimpleCubeActor : public AActor
 {
 	GENERATED_BODY()
 

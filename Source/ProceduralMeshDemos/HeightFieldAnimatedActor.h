@@ -10,7 +10,7 @@
 #include "HeightFieldAnimatedActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API AHeightFieldAnimatedActor : public AActor
+class PROCEDURALMESHDEMOS_API AHeightFieldAnimatedActor : public AActor
 {
 	GENERATED_BODY()
 

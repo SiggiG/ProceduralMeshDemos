@@ -10,7 +10,7 @@
 #include "SimpleCylinderActor.generated.h"
 
 UCLASS()
-class PROCEDURALMESHES_API ASimpleCylinderActor : public AActor
+class PROCEDURALMESHDEMOS_API ASimpleCylinderActor : public AActor
 {
 	GENERATED_BODY()
 

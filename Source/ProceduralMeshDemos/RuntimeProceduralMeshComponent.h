@@ -15,7 +15,7 @@
  * The owning actor is expected to regenerate the mesh in PostLoad / OnConstruction.
  */
 UCLASS(meta = (BlueprintSpawnableComponent))
-class PROCEDURALMESHES_API URuntimeProceduralMeshComponent : public UProceduralMeshComponent
+class PROCEDURALMESHDEMOS_API URuntimeProceduralMeshComponent : public UProceduralMeshComponent
 {
 	GENERATED_BODY()
 

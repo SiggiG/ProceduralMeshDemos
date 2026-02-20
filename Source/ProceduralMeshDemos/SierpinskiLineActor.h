@@ -47,7 +47,7 @@ struct FPyramidLine
 };
 
 UCLASS()
-class PROCEDURALMESHES_API ASierpinskiLineActor : public AActor
+class PROCEDURALMESHDEMOS_API ASierpinskiLineActor : public AActor
 {
 	GENERATED_BODY()
 
