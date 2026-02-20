@@ -75,7 +75,48 @@ void ABranchingLinesActor::GenerateMesh()
 		return;
 	}
 
+	// -------------------------------------------------------
+	// Identify terminal endpoints (roots and leaves) for end caps
+	auto Quantize = [](const FVector& V) -> FIntVector
+	{
+		return FIntVector(
+			FMath::RoundToInt(V.X * 100.f),
+			FMath::RoundToInt(V.Y * 100.f),
+			FMath::RoundToInt(V.Z * 100.f)
+		);
+	};
+
+	TSet<FIntVector> AllStartPoints, AllEndPoints;
+	int32 NumCaps = 0;
+
+	if (EndCapType != EBranchEndCapType::None)
+	{
+		for (const FBranchSegment& Seg : Segments)
+		{
+			AllStartPoints.Add(Quantize(Seg.Start));
+			AllEndPoints.Add(Quantize(Seg.End));
+		}
+
+		for (const FBranchSegment& Seg : Segments)
+		{
+			if (!AllStartPoints.Contains(Quantize(Seg.End))) NumCaps++;   // leaf
+			if (!AllEndPoints.Contains(Quantize(Seg.Start))) NumCaps++;   // root
+		}
+	}
+
 	SetupMeshBuffers();
+
+	// Extend buffers for end cap geometry
+	if (NumCaps > 0)
+	{
+		const int32 CapVerts = RadialSegmentCount + 2; // 1 tip + (RadialSegmentCount+1) rim
+		const int32 CapIndices = RadialSegmentCount * 3;
+		Positions.AddUninitialized(NumCaps * CapVerts);
+		Normals.AddUninitialized(NumCaps * CapVerts);
+		Tangents.AddUninitialized(NumCaps * CapVerts);
+		TexCoords.AddUninitialized(NumCaps * CapVerts);
+		Triangles.AddUninitialized(NumCaps * CapIndices);
+	}
 
 	// -------------------------------------------------------
 	// Now lets loop through all the defined segments and create a cylinder for each
@@ -85,6 +126,31 @@ void ABranchingLinesActor::GenerateMesh()
 	for (int32 i = 0; i < Segments.Num(); i++)
 	{
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Segments[i].Start, Segments[i].End, Segments[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
+	}
+
+	// Generate end caps at terminal endpoints
+	if (EndCapType != EBranchEndCapType::None)
+	{
+		const float CapTaperLen = (EndCapType == EBranchEndCapType::Taper) ? TaperLength : 0.f;
+
+		for (const FBranchSegment& Seg : Segments)
+		{
+			// Compute the rotation quaternion matching GenerateCylinder's Euler rotation
+			const FVector LineDir = (Seg.Start - Seg.End).GetSafeNormal();
+			const FQuat Q = FQuat::MakeFromEuler(LineDir.Rotation().Add(90.f, 0.f, 0.f).Euler());
+
+			// Leaf cap at segment End
+			if (!AllStartPoints.Contains(Quantize(Seg.End)))
+			{
+				GenerateEndCap(Seg.End, Q, -LineDir, Seg.Width, CapTaperLen, VertexIndex, TriangleIndex);
+			}
+
+			// Root cap at segment Start
+			if (!AllEndPoints.Contains(Quantize(Seg.Start)))
+			{
+				GenerateEndCap(Seg.Start, Q, LineDir, Seg.Width, CapTaperLen, VertexIndex, TriangleIndex);
+			}
+		}
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
@@ -214,6 +280,16 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 	TArray<FTubeData> Tubes;
 	Tubes.Reserve(Chains.Num());
 
+	// Collect end cap info while building tubes
+	struct FCapInfo
+	{
+		FVector Center;
+		FQuat Orientation;
+		FVector OutwardDir;
+		float Width;
+	};
+	TArray<FCapInfo> Caps;
+
 	for (const FChain& Chain : Chains)
 	{
 		if (Chain.Points.Num() < 2)
@@ -284,11 +360,29 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 		// Last endpoint ring
 		Tube.Rings.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), 0.f});
 
+		// Check for terminal endpoints that need caps
+		if (EndCapType != EBranchEndCapType::None)
+		{
+			// Root: first point not any segment's End → tree root
+			if (!EndPointSet.Contains(Quantize(Chain.Points[0])))
+			{
+				Caps.Add({Chain.Points[0], MakeQuat(Dirs[0]), -Dirs[0], Chain.Width});
+			}
+
+			// Leaf: last point not any segment's Start → branch tip
+			if (!StartMap.Contains(Quantize(Chain.Points.Last())))
+			{
+				Caps.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), Dirs.Last(), Chain.Width});
+			}
+		}
+
 		Tubes.Add(MoveTemp(Tube));
 	}
 
 	// --- Step 3: Allocate mesh buffers ---
 	const int32 VertsPerRing = RadialSegmentCount + 1;
+	const int32 CapVerts = RadialSegmentCount + 2;    // 1 tip + (RadialSegmentCount+1) rim
+	const int32 CapIndices = RadialSegmentCount * 3;
 	int32 TotalVerts = 0;
 	int32 TotalIndices = 0;
 
@@ -297,6 +391,9 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 		TotalVerts += Tube.Rings.Num() * VertsPerRing;
 		TotalIndices += (Tube.Rings.Num() - 1) * RadialSegmentCount * 6;
 	}
+
+	TotalVerts += Caps.Num() * CapVerts;
+	TotalIndices += Caps.Num() * CapIndices;
 
 	if (TotalVerts == 0)
 	{
@@ -362,8 +459,67 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 		}
 	}
 
+	// --- Step 5: Generate end caps ---
+	const float CapTaperLen = (EndCapType == EBranchEndCapType::Taper) ? TaperLength : 0.f;
+	for (const FCapInfo& Cap : Caps)
+	{
+		GenerateEndCap(Cap.Center, Cap.Orientation, Cap.OutwardDir, Cap.Width, CapTaperLen, VertIdx, TriIdx);
+	}
+
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
 	MeshComponent->SetMaterial(0, Material);
+}
+
+void ABranchingLinesActor::GenerateEndCap(const FVector& RingCenter, const FQuat& RingOrientation, const FVector& OutwardDir, const float Width, const float InTaperLength, int32& InVertexIndex, int32& InTriangleIndex)
+{
+	const FVector TipPos = RingCenter + OutwardDir * InTaperLength;
+	const bool bIsTaper = InTaperLength > KINDA_SMALL_NUMBER;
+	const float SlantInvLen = bIsTaper
+		? 1.f / FMath::Sqrt(Width * Width + InTaperLength * InTaperLength)
+		: 0.f;
+
+	const FVector CapTangent = RingOrientation.RotateVector(FVector::ForwardVector);
+
+	// Center/tip vertex
+	const int32 TipIdx = InVertexIndex++;
+	Positions[TipIdx] = TipPos;
+	Normals[TipIdx] = OutwardDir;
+	Tangents[TipIdx] = FProcMeshTangent(CapTangent, false);
+	TexCoords[TipIdx] = FVector2D(0.5f, 0.5f);
+
+	// Rim vertices
+	const int32 RimBaseIdx = InVertexIndex;
+	for (int32 j = 0; j <= RadialSegmentCount; ++j)
+	{
+		const int32 VI = InVertexIndex++;
+		const FVector LocalPos = CachedCrossSectionPoints[j] * Width;
+		const FVector WorldOffset = RingOrientation.RotateVector(LocalPos);
+		Positions[VI] = RingCenter + WorldOffset;
+
+		if (bIsTaper)
+		{
+			// Cone surface normal: perpendicular to the slant surface, pointing outward
+			const FVector Radial = WorldOffset.GetSafeNormal();
+			Normals[VI] = (Radial * InTaperLength + OutwardDir * Width) * SlantInvLen;
+		}
+		else
+		{
+			Normals[VI] = OutwardDir;
+		}
+
+		Tangents[VI] = FProcMeshTangent(CapTangent, false);
+		TexCoords[VI] = FVector2D(
+			(CachedCrossSectionPoints[j].X + 1.f) * 0.5f,
+			(CachedCrossSectionPoints[j].Y + 1.f) * 0.5f);
+	}
+
+	// Triangle fan from tip to rim
+	for (int32 j = 0; j < RadialSegmentCount; ++j)
+	{
+		Triangles[InTriangleIndex++] = TipIdx;
+		Triangles[InTriangleIndex++] = RimBaseIdx + j + 1;
+		Triangles[InTriangleIndex++] = RimBaseIdx + j;
+	}
 }
 
 FVector ABranchingLinesActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)
