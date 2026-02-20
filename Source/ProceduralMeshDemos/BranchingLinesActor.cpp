@@ -76,7 +76,7 @@ void ABranchingLinesActor::GenerateMesh()
 	}
 
 	// -------------------------------------------------------
-	// Identify terminal endpoints (roots and leaves) for end caps
+	// Build connectivity maps for caps and fork sphere joints
 	auto Quantize = [](const FVector& V) -> FIntVector
 	{
 		return FIntVector(
@@ -86,36 +86,62 @@ void ABranchingLinesActor::GenerateMesh()
 		);
 	};
 
-	TSet<FIntVector> AllStartPoints, AllEndPoints;
-	int32 NumCaps = 0;
+	TMap<FIntVector, TArray<int32>> StartPointMap;
+	TSet<FIntVector> AllEndPoints;
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		StartPointMap.FindOrAdd(Quantize(Segments[i].Start)).Add(i);
+		AllEndPoints.Add(Quantize(Segments[i].End));
+	}
 
+	// Identify fork points — sphere joints to cover branch gaps
+	struct FForkInfo { FVector Position; float Radius; };
+	TArray<FForkInfo> Forks;
+	for (const auto& Pair : StartPointMap)
+	{
+		if (Pair.Value.Num() > 1)
+		{
+			float MaxWidth = 0.f;
+			FVector Pos = FVector::ZeroVector;
+			for (int32 SegIdx : Pair.Value)
+			{
+				MaxWidth = FMath::Max(MaxWidth, Segments[SegIdx].Width);
+				Pos = Segments[SegIdx].Start;
+			}
+			Forks.Add({Pos, MaxWidth});
+		}
+	}
+
+	// Identify terminal endpoints (roots and leaves) for end caps
+	int32 NumCaps = 0;
 	if (EndCapType != EBranchEndCapType::None)
 	{
 		for (const FBranchSegment& Seg : Segments)
 		{
-			AllStartPoints.Add(Quantize(Seg.Start));
-			AllEndPoints.Add(Quantize(Seg.End));
-		}
-
-		for (const FBranchSegment& Seg : Segments)
-		{
-			if (!AllStartPoints.Contains(Quantize(Seg.End))) NumCaps++;   // leaf
-			if (!AllEndPoints.Contains(Quantize(Seg.Start))) NumCaps++;   // root
+			if (!StartPointMap.Contains(Quantize(Seg.End))) NumCaps++;   // leaf
+			if (!AllEndPoints.Contains(Quantize(Seg.Start))) NumCaps++;  // root
 		}
 	}
 
 	SetupMeshBuffers();
 
-	// Extend buffers for end cap geometry
-	if (NumCaps > 0)
+	// Extend buffers for sphere joints and end caps
 	{
-		const int32 CapVerts = RadialSegmentCount + 2; // 1 tip + (RadialSegmentCount+1) rim
+		const int32 SphereRings = FMath::Max(RadialSegmentCount / 2, 3);
+		const int32 SphereVerts = (SphereRings + 1) * (RadialSegmentCount + 1);
+		const int32 SphereIndices = SphereRings * RadialSegmentCount * 6;
+		const int32 CapVerts = RadialSegmentCount + 2;
 		const int32 CapIndices = RadialSegmentCount * 3;
-		Positions.AddUninitialized(NumCaps * CapVerts);
-		Normals.AddUninitialized(NumCaps * CapVerts);
-		Tangents.AddUninitialized(NumCaps * CapVerts);
-		TexCoords.AddUninitialized(NumCaps * CapVerts);
-		Triangles.AddUninitialized(NumCaps * CapIndices);
+		const int32 ExtraVerts = Forks.Num() * SphereVerts + NumCaps * CapVerts;
+		const int32 ExtraIndices = Forks.Num() * SphereIndices + NumCaps * CapIndices;
+		if (ExtraVerts > 0)
+		{
+			Positions.AddUninitialized(ExtraVerts);
+			Normals.AddUninitialized(ExtraVerts);
+			Tangents.AddUninitialized(ExtraVerts);
+			TexCoords.AddUninitialized(ExtraVerts);
+			Triangles.AddUninitialized(ExtraIndices);
+		}
 	}
 
 	// -------------------------------------------------------
@@ -126,6 +152,12 @@ void ABranchingLinesActor::GenerateMesh()
 	for (int32 i = 0; i < Segments.Num(); i++)
 	{
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Segments[i].Start, Segments[i].End, Segments[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
+	}
+
+	// Generate sphere joints at fork points
+	for (const FForkInfo& Fork : Forks)
+	{
+		GenerateSphereJoint(Fork.Position, Fork.Radius, VertexIndex, TriangleIndex);
 	}
 
 	// Generate end caps at terminal endpoints
@@ -140,7 +172,7 @@ void ABranchingLinesActor::GenerateMesh()
 			const FQuat Q = FQuat::MakeFromEuler(LineDir.Rotation().Add(90.f, 0.f, 0.f).Euler());
 
 			// Leaf cap at segment End
-			if (!AllStartPoints.Contains(Quantize(Seg.End)))
+			if (!StartPointMap.Contains(Quantize(Seg.End)))
 			{
 				GenerateEndCap(Seg.End, Q, -LineDir, Seg.Width, CapTaperLen, VertexIndex, TriangleIndex);
 			}
@@ -290,6 +322,30 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 	};
 	TArray<FCapInfo> Caps;
 
+	// Collect fork points where branches split — we'll place sphere joints to cover gaps
+	struct FForkInfo
+	{
+		FVector Position;
+		float Radius;
+	};
+	TArray<FForkInfo> Forks;
+
+	for (const auto& Pair : StartMap)
+	{
+		if (Pair.Value.Num() > 1)
+		{
+			// Fork point: multiple segments start here — find the widest tube meeting here
+			float MaxWidth = 0.f;
+			FVector Pos = FVector::ZeroVector;
+			for (int32 SegIdx : Pair.Value)
+			{
+				MaxWidth = FMath::Max(MaxWidth, Segments[SegIdx].Width);
+				Pos = Segments[SegIdx].Start;
+			}
+			Forks.Add({Pos, MaxWidth});
+		}
+	}
+
 	for (const FChain& Chain : Chains)
 	{
 		if (Chain.Points.Num() < 2)
@@ -383,6 +439,9 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 	const int32 VertsPerRing = RadialSegmentCount + 1;
 	const int32 CapVerts = RadialSegmentCount + 2;    // 1 tip + (RadialSegmentCount+1) rim
 	const int32 CapIndices = RadialSegmentCount * 3;
+	const int32 SphereRings = FMath::Max(RadialSegmentCount / 2, 3);
+	const int32 SphereVerts = (SphereRings + 1) * (RadialSegmentCount + 1);
+	const int32 SphereIndices = SphereRings * RadialSegmentCount * 6;
 	int32 TotalVerts = 0;
 	int32 TotalIndices = 0;
 
@@ -394,6 +453,8 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 
 	TotalVerts += Caps.Num() * CapVerts;
 	TotalIndices += Caps.Num() * CapIndices;
+	TotalVerts += Forks.Num() * SphereVerts;
+	TotalIndices += Forks.Num() * SphereIndices;
 
 	if (TotalVerts == 0)
 	{
@@ -459,7 +520,13 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 		}
 	}
 
-	// --- Step 5: Generate end caps ---
+	// --- Step 5: Generate sphere joints at fork points ---
+	for (const FForkInfo& Fork : Forks)
+	{
+		GenerateSphereJoint(Fork.Position, Fork.Radius, VertIdx, TriIdx);
+	}
+
+	// --- Step 6: Generate end caps ---
 	const float CapTaperLen = (EndCapType == EBranchEndCapType::Taper) ? TaperLength : 0.f;
 	for (const FCapInfo& Cap : Caps)
 	{
@@ -519,6 +586,57 @@ void ABranchingLinesActor::GenerateEndCap(const FVector& RingCenter, const FQuat
 		Triangles[InTriangleIndex++] = TipIdx;
 		Triangles[InTriangleIndex++] = RimBaseIdx + j + 1;
 		Triangles[InTriangleIndex++] = RimBaseIdx + j;
+	}
+}
+
+void ABranchingLinesActor::GenerateSphereJoint(const FVector& Center, const float Radius, int32& InVertexIndex, int32& InTriangleIndex)
+{
+	const int32 NumRings = FMath::Max(RadialSegmentCount / 2, 3);
+	const int32 NumSegs = RadialSegmentCount;
+	const int32 BaseVert = InVertexIndex;
+
+	// Generate vertices row by row: phi sweeps from 0 (top pole) to PI (bottom pole)
+	for (int32 Ring = 0; Ring <= NumRings; ++Ring)
+	{
+		const float Phi = PI * static_cast<float>(Ring) / static_cast<float>(NumRings);
+		const float SinPhi = FMath::Sin(Phi);
+		const float CosPhi = FMath::Cos(Phi);
+		const float V = static_cast<float>(Ring) / static_cast<float>(NumRings);
+
+		for (int32 Seg = 0; Seg <= NumSegs; ++Seg)
+		{
+			const float Theta = 2.f * PI * static_cast<float>(Seg) / static_cast<float>(NumSegs);
+			const float U = static_cast<float>(Seg) / static_cast<float>(NumSegs);
+
+			const FVector Normal(SinPhi * FMath::Cos(Theta), SinPhi * FMath::Sin(Theta), CosPhi);
+
+			const int32 VI = InVertexIndex++;
+			Positions[VI] = Center + Normal * Radius;
+			Normals[VI] = Normal;
+			Tangents[VI] = FProcMeshTangent(FVector(-FMath::Sin(Theta), FMath::Cos(Theta), 0.f), false);
+			TexCoords[VI] = FVector2D(U, V);
+		}
+	}
+
+	// Generate triangles connecting adjacent rows — same winding as tube quads
+	const int32 Stride = NumSegs + 1;
+	for (int32 Ring = 0; Ring < NumRings; ++Ring)
+	{
+		for (int32 Seg = 0; Seg < NumSegs; ++Seg)
+		{
+			const int32 V0 = BaseVert + Ring * Stride + Seg;
+			const int32 V1 = BaseVert + Ring * Stride + Seg + 1;
+			const int32 V2 = BaseVert + (Ring + 1) * Stride + Seg + 1;
+			const int32 V3 = BaseVert + (Ring + 1) * Stride + Seg;
+
+			Triangles[InTriangleIndex++] = V0;
+			Triangles[InTriangleIndex++] = V2;
+			Triangles[InTriangleIndex++] = V3;
+
+			Triangles[InTriangleIndex++] = V0;
+			Triangles[InTriangleIndex++] = V1;
+			Triangles[InTriangleIndex++] = V2;
+		}
 	}
 }
 
