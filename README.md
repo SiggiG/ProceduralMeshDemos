@@ -1,7 +1,7 @@
 
 # Procedural mesh examples for Unreal 5
 
-![procexamples](https://cloud.githubusercontent.com/assets/7083424/15453990/b929700a-2022-11e6-8851-6566da93c5f5.jpg)
+<img width="873" height="584" alt="procmesh_project" src="https://github.com/user-attachments/assets/97280641-b40d-4a9a-9244-bb51c048d38f" />
 
 ## Overview
 I've been wanting to learn how to procedurally generate meshes in Unreal for some time now, and have noticed interest from the community as well.
@@ -23,6 +23,7 @@ PLEASE NOTE: I update these examples from time to time to follow the latest Unre
 I finally updated the project for Unreal 5 and simplified the project structure
 - Cleanup
 - Made the code simpler by using the normal engine ProceduralMeshComponent.  The other one is faster, but switching made this code example simpler
+- Derived a simple class from ProceduralMeshComponent to deal with serialization, and not saving mesh data into actor or map. Its regenerated every time its needed.
 - Simplified folder structure, merged Plugin into the main project source.
 - Deleted shadow map, turned on Lumen etc
 
@@ -113,7 +114,6 @@ Grid mesh with an animated Z axis using sine and cosine.
 ##### More examples!
 I want to provide more examples in the future, and would love if members of the community could provide some! Of course you will get full credit for your contributions.
 
-- [ ] Joined cylinders (fast method and properly joined).
 - [ ] Proper UV maps for Sierpinski pyramid and branching lines
 - [ ] Sphere
 - [ ] Sierpinski pyramid without lines

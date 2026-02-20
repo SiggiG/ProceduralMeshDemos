@@ -68,7 +68,110 @@ void ABranchingLinesActor::GenerateMesh()
 	CreateSegments();
 
 	MeshComponent->ClearAllMeshSections();
+
+	if (bSmoothJoints)
+	{
+		GenerateSmoothMesh();
+		return;
+	}
+
+	// -------------------------------------------------------
+	// Build connectivity maps
+	auto Quantize = [](const FVector& V) -> FIntVector
+	{
+		return FIntVector(
+			FMath::RoundToInt(V.X * 100.f),
+			FMath::RoundToInt(V.Y * 100.f),
+			FMath::RoundToInt(V.Z * 100.f)
+		);
+	};
+
+	TMap<FIntVector, TArray<int32>> StartPointMap;
+	TSet<FIntVector> AllEndPoints;
+	TMap<FIntVector, int32> EndToSegMap;
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		StartPointMap.FindOrAdd(Quantize(Segments[i].Start)).Add(i);
+		AllEndPoints.Add(Quantize(Segments[i].End));
+		EndToSegMap.Add(Quantize(Segments[i].End), i);
+	}
+
+	// Identify fork points — oriented sphere joints aligned to parent cylinder
+	struct FForkInfo { FVector Position; float Radius; FQuat Orientation; };
+	TArray<FForkInfo> Forks;
+	for (const auto& Pair : StartPointMap)
+	{
+		if (Pair.Value.Num() > 1)
+		{
+			// Find parent segment (the one whose End = this fork point)
+			const int32* ParentIdxPtr = EndToSegMap.Find(Pair.Key);
+			if (ParentIdxPtr)
+			{
+				const FBranchSegment& Parent = Segments[*ParentIdxPtr];
+				const FVector LineDir = (Parent.Start - Parent.End).GetSafeNormal();
+				const FQuat Q = FQuat::MakeFromEuler(LineDir.Rotation().Add(90.f, 0.f, 0.f).Euler());
+				Forks.Add({Parent.End, Parent.Width, Q});
+			}
+			else
+			{
+				// No parent (tree root is a fork — unlikely but handle it)
+				float MaxWidth = 0.f;
+				FVector Pos = FVector::ZeroVector;
+				for (int32 SegIdx : Pair.Value)
+				{
+					MaxWidth = FMath::Max(MaxWidth, Segments[SegIdx].Width);
+					Pos = Segments[SegIdx].Start;
+				}
+				const FBranchSegment& First = Segments[Pair.Value[0]];
+				const FVector Dir = (First.End - First.Start).GetSafeNormal();
+				Forks.Add({Pos, MaxWidth, FQuat::FindBetweenNormals(FVector::UpVector, Dir)});
+			}
+		}
+	}
+
+	// Identify terminal endpoints for end caps
+	struct FTerminalCap { FVector Center; FQuat Orientation; FVector OutwardDir; float Width; float TaperLen; };
+	TArray<FTerminalCap> TerminalCaps;
+	if (EndCapType != EBranchEndCapType::None)
+	{
+		const float TermTaper = (EndCapType == EBranchEndCapType::Taper) ? TaperLength : 0.f;
+		for (const FBranchSegment& Seg : Segments)
+		{
+			const FVector LineDir = (Seg.Start - Seg.End).GetSafeNormal();
+			const FQuat Q = FQuat::MakeFromEuler(LineDir.Rotation().Add(90.f, 0.f, 0.f).Euler());
+
+			if (!StartPointMap.Contains(Quantize(Seg.End)))
+			{
+				TerminalCaps.Add({Seg.End, Q, -LineDir, Seg.Width, TermTaper});
+			}
+			if (!AllEndPoints.Contains(Quantize(Seg.Start)))
+			{
+				TerminalCaps.Add({Seg.Start, Q, LineDir, Seg.Width, TermTaper});
+			}
+		}
+	}
+
 	SetupMeshBuffers();
+
+	// Extend buffers for sphere joints and terminal caps
+	{
+		const int32 HemiRings = FMath::Max(RadialSegmentCount / 4, 2);
+		const int32 SphereVertsPerRing = RadialSegmentCount + 1;
+		const int32 SphereNewVerts = (2 * HemiRings + 1) * SphereVertsPerRing; // non-welded: all rings
+		const int32 SphereIndices = 2 * HemiRings * RadialSegmentCount * 6;
+		const int32 CapVerts = RadialSegmentCount + 2;
+		const int32 CapIndices = RadialSegmentCount * 3;
+		const int32 ExtraVerts = Forks.Num() * SphereNewVerts + TerminalCaps.Num() * CapVerts;
+		const int32 ExtraIndices = Forks.Num() * SphereIndices + TerminalCaps.Num() * CapIndices;
+		if (ExtraVerts > 0)
+		{
+			Positions.AddUninitialized(ExtraVerts);
+			Normals.AddUninitialized(ExtraVerts);
+			Tangents.AddUninitialized(ExtraVerts);
+			TexCoords.AddUninitialized(ExtraVerts);
+			Triangles.AddUninitialized(ExtraIndices);
+		}
+	}
 
 	// -------------------------------------------------------
 	// Now lets loop through all the defined segments and create a cylinder for each
@@ -80,8 +183,586 @@ void ABranchingLinesActor::GenerateMesh()
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Segments[i].Start, Segments[i].End, Segments[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
 	}
 
+	// Offset child segment start-ring vertices backward along the tube direction
+	// so they sit inside the parent sphere. The ring keeps its full width — the
+	// offset portion is hidden by the sphere, and the tube emerges at full size.
+	{
+		TMap<FIntVector, float> ForkSphereMap;
+		for (const FForkInfo& Fork : Forks)
+		{
+			ForkSphereMap.Add(Quantize(Fork.Position), Fork.Radius);
+		}
+
+		const int32 VertsPerSegment = RadialSegmentCount * 4;
+		for (int32 i = 0; i < Segments.Num(); ++i)
+		{
+			const float* SphereRadius = ForkSphereMap.Find(Quantize(Segments[i].Start));
+			if (!SphereRadius) continue;
+
+			const float R = *SphereRadius;
+			const float W = Segments[i].Width;
+			if (W >= R) continue; // same width as parent — already coincident with sphere equator
+
+			const FVector SegDir = (Segments[i].End - Segments[i].Start).GetSafeNormal();
+			const float OffsetDist = FMath::Sqrt(R * R - W * W);
+			const FVector Shift = -SegDir * OffsetDist;
+
+			const int32 SegBase = i * VertsPerSegment;
+			for (int32 q = 0; q < RadialSegmentCount; ++q)
+			{
+				// P0 and P1 are the start-end vertices of each quad
+				for (int32 v = 0; v < 2; ++v)
+				{
+					Positions[SegBase + q * 4 + v] += Shift;
+				}
+			}
+		}
+	}
+
+	// Generate oriented sphere joints at fork points (aligned to parent cylinder)
+	for (const FForkInfo& Fork : Forks)
+	{
+		GenerateSphereJoint(Fork.Position, Fork.Radius, Fork.Orientation, -1, VertexIndex, TriangleIndex);
+	}
+
+	// Generate terminal end caps
+	if (EndCapType != EBranchEndCapType::None)
+	{
+		for (const FTerminalCap& Cap : TerminalCaps)
+		{
+			GenerateEndCap(Cap.Center, Cap.Orientation, Cap.OutwardDir, Cap.Width, Cap.TaperLen, VertexIndex, TriangleIndex);
+		}
+	}
+
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
 	MeshComponent->SetMaterial(0, Material);
+}
+
+void ABranchingLinesActor::GenerateSmoothMesh()
+{
+	if (Segments.Num() == 0)
+	{
+		return;
+	}
+
+	// --- Step 1: Build polyline chains from the flat segment list ---
+	// Segments form a tree (from subdivision + forks). We trace chains of connected
+	// segments, breaking at fork points (where multiple segments share a start point)
+	// and at leaves (where no continuation exists).
+
+	// Quantize points to integer keys for reliable lookup
+	auto Quantize = [](const FVector& V) -> FIntVector
+	{
+		return FIntVector(
+			FMath::RoundToInt(V.X * 100.f),
+			FMath::RoundToInt(V.Y * 100.f),
+			FMath::RoundToInt(V.Z * 100.f)
+		);
+	};
+
+	// Map: quantized start point -> list of segment indices starting there
+	TMap<FIntVector, TArray<int32>> StartMap;
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		StartMap.FindOrAdd(Quantize(Segments[i].Start)).Add(i);
+	}
+
+	// Set of all quantized end points
+	TSet<FIntVector> EndPointSet;
+	for (const FBranchSegment& Seg : Segments)
+	{
+		EndPointSet.Add(Quantize(Seg.End));
+	}
+
+	// Trace chains
+	struct FChain
+	{
+		TArray<FVector> Points;
+		float Width;
+	};
+
+	TArray<FChain> Chains;
+	TSet<int32> Visited;
+
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		if (Visited.Contains(i))
+		{
+			continue;
+		}
+
+		const FIntVector StartKey = Quantize(Segments[i].Start);
+
+		// A segment starts a new chain if its Start point is either:
+		// - Not the End of any segment (root of the tree)
+		// - At a fork point (multiple segments start from the same point)
+		const bool bIsRoot = !EndPointSet.Contains(StartKey);
+		const TArray<int32>* StartsHere = StartMap.Find(StartKey);
+		const bool bIsFork = StartsHere && StartsHere->Num() > 1;
+
+		if (!bIsRoot && !bIsFork)
+		{
+			continue;
+		}
+
+		// Trace chain from this segment
+		FChain Chain;
+		Chain.Width = Segments[i].Width;
+		Chain.Points.Add(Segments[i].Start);
+
+		int32 Current = i;
+		while (Current >= 0 && !Visited.Contains(Current))
+		{
+			Visited.Add(Current);
+			Chain.Points.Add(Segments[Current].End);
+
+			// Find continuation: exactly one unvisited segment starting at this End point
+			const FIntVector EndKey = Quantize(Segments[Current].End);
+			const TArray<int32>* NextStarts = StartMap.Find(EndKey);
+
+			if (!NextStarts || NextStarts->Num() != 1)
+			{
+				break; // fork or leaf — end chain
+			}
+
+			const int32 Next = (*NextStarts)[0];
+			if (Visited.Contains(Next))
+			{
+				break;
+			}
+
+			Current = Next;
+		}
+
+		Chains.Add(MoveTemp(Chain));
+	}
+
+	// --- Step 2: Build rings for each chain and compute buffer sizes ---
+	auto MakeQuat = [](const FVector& Dir) -> FQuat
+	{
+		return FQuat::FindBetweenNormals(FVector::UpVector, Dir);
+	};
+
+	struct FRing
+	{
+		FVector Center;
+		FQuat Orientation;
+		float V;
+	};
+
+	struct FTubeData
+	{
+		TArray<FRing> Rings;
+		float Width;
+	};
+
+	const float AngleThreshold = FMath::DegreesToRadians(2.f);
+
+	TArray<FTubeData> Tubes;
+	Tubes.Reserve(Chains.Num());
+
+	// Collect end cap info while building tubes
+	struct FCapInfo
+	{
+		FVector Center;
+		FQuat Orientation;
+		FVector OutwardDir;
+		float Width;
+		float TaperLength;
+	};
+	TArray<FCapInfo> Caps;
+
+	// Collect fork info for welded sphere joints
+	struct FForkInfo
+	{
+		FVector Position;
+		float Radius;
+		FQuat Orientation;
+		int32 ParentTubeIndex;
+	};
+	TArray<FForkInfo> Forks;
+
+	for (const FChain& Chain : Chains)
+	{
+		if (Chain.Points.Num() < 2)
+		{
+			continue;
+		}
+
+		const int32 NumSeg = Chain.Points.Num() - 1;
+
+		// Compute segment directions
+		TArray<FVector> Dirs;
+		Dirs.Reserve(NumSeg);
+		for (int32 s = 0; s < NumSeg; ++s)
+		{
+			const FVector Delta = Chain.Points[s + 1] - Chain.Points[s];
+			const float Len = Delta.Size();
+			Dirs.Add(Len > KINDA_SMALL_NUMBER ? Delta / Len : FVector::UpVector);
+		}
+
+		FTubeData Tube;
+		Tube.Width = Chain.Width;
+
+		// First endpoint ring
+		Tube.Rings.Add({Chain.Points[0], MakeQuat(Dirs[0]), 1.f});
+
+		// Interior joints
+		for (int32 p = 0; p < NumSeg - 1; ++p)
+		{
+			const FVector& DirIn = Dirs[p];
+			const FVector& DirOut = Dirs[p + 1];
+			const FVector& JointPt = Chain.Points[p + 1];
+
+			const float CosAlpha = FMath::Clamp(FVector::DotProduct(DirIn, DirOut), -1.f, 1.f);
+			const float Alpha = FMath::Acos(CosAlpha);
+
+			if (Alpha < AngleThreshold)
+			{
+				// Nearly straight — two coincident rings to reset V
+				Tube.Rings.Add({JointPt, MakeQuat(DirIn), 0.f});
+				Tube.Rings.Add({JointPt, MakeQuat(DirOut), 1.f});
+			}
+			else if (JointSegments <= 0 || Alpha > PI - AngleThreshold)
+			{
+				// Sharp miter
+				FVector MiterDir = (DirIn + DirOut);
+				if (MiterDir.SizeSquared() < KINDA_SMALL_NUMBER)
+				{
+					MiterDir = DirOut;
+				}
+				const FQuat MiterQ = MakeQuat(MiterDir.GetSafeNormal());
+				Tube.Rings.Add({JointPt, MiterQ, 0.f});
+				Tube.Rings.Add({JointPt, MiterQ, 1.f});
+			}
+			else
+			{
+				// Smooth spherical joint: slerp from incoming to outgoing
+				const FQuat QIn = MakeQuat(DirIn);
+				const FQuat QOut = MakeQuat(DirOut);
+
+				for (int32 j = 0; j <= JointSegments; ++j)
+				{
+					const float T = static_cast<float>(j) / static_cast<float>(JointSegments);
+					Tube.Rings.Add({JointPt, FQuat::Slerp(QIn, QOut, T), T});
+				}
+			}
+		}
+
+		// Last endpoint ring
+		Tube.Rings.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), 0.f});
+
+		// Record sphere joint if chain ends at a fork point (parent tube welding)
+		{
+			const FIntVector LastKey = Quantize(Chain.Points.Last());
+			const TArray<int32>* StartsAtLast = StartMap.Find(LastKey);
+			if (StartsAtLast && StartsAtLast->Num() > 1)
+			{
+				Forks.Add({Chain.Points.Last(), Chain.Width, MakeQuat(Dirs.Last()), Tubes.Num()});
+			}
+		}
+
+		// Collect caps at terminal endpoints (roots and leaves) if EndCapType is enabled
+		if (EndCapType != EBranchEndCapType::None)
+		{
+			const float TerminalTaper = (EndCapType == EBranchEndCapType::Taper) ? TaperLength : 0.f;
+
+			// Root: first point not any segment's End → tree root
+			if (!EndPointSet.Contains(Quantize(Chain.Points[0])))
+			{
+				Caps.Add({Chain.Points[0], MakeQuat(Dirs[0]), -Dirs[0], Chain.Width, TerminalTaper});
+			}
+
+			// Leaf: last point not any segment's Start → branch tip
+			if (!StartMap.Contains(Quantize(Chain.Points.Last())))
+			{
+				Caps.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), Dirs.Last(), Chain.Width, TerminalTaper});
+			}
+		}
+
+		Tubes.Add(MoveTemp(Tube));
+	}
+
+	// --- Step 3: Allocate mesh buffers ---
+	const int32 VertsPerRing = RadialSegmentCount + 1;
+	const int32 CapVerts = RadialSegmentCount + 2;    // 1 tip + (RadialSegmentCount+1) rim
+	const int32 CapIndices = RadialSegmentCount * 3;
+	const int32 HemiRings = FMath::Max(RadialSegmentCount / 4, 2);
+	const int32 WeldedSphereNewVerts = 2 * HemiRings * VertsPerRing; // equator ring is welded (reused)
+	const int32 SphereIndices = 2 * HemiRings * RadialSegmentCount * 6;
+	int32 TotalVerts = 0;
+	int32 TotalIndices = 0;
+
+	for (const FTubeData& Tube : Tubes)
+	{
+		TotalVerts += Tube.Rings.Num() * VertsPerRing;
+		TotalIndices += (Tube.Rings.Num() - 1) * RadialSegmentCount * 6;
+	}
+
+	TotalVerts += Caps.Num() * CapVerts;
+	TotalIndices += Caps.Num() * CapIndices;
+	TotalVerts += Forks.Num() * WeldedSphereNewVerts;
+	TotalIndices += Forks.Num() * SphereIndices;
+
+	if (TotalVerts == 0)
+	{
+		return;
+	}
+
+	Positions.SetNumUninitialized(TotalVerts);
+	Normals.SetNumUninitialized(TotalVerts);
+	Tangents.SetNumUninitialized(TotalVerts);
+	TexCoords.SetNumUninitialized(TotalVerts);
+	Triangles.SetNumUninitialized(TotalIndices);
+
+	// --- Step 4: Fill mesh buffers ---
+	const float UStep = 1.f / static_cast<float>(RadialSegmentCount);
+	int32 VertIdx = 0;
+	int32 TriIdx = 0;
+
+	TArray<int32> TubeFirstRingBase;
+	TArray<int32> TubeLastRingBase;
+	TubeFirstRingBase.SetNum(Tubes.Num());
+	TubeLastRingBase.SetNum(Tubes.Num());
+
+	for (int32 TubeIdx = 0; TubeIdx < Tubes.Num(); ++TubeIdx)
+	{
+		const FTubeData& Tube = Tubes[TubeIdx];
+		const int32 NumRings = Tube.Rings.Num();
+		const int32 TubeBaseVert = VertIdx;
+		TubeFirstRingBase[TubeIdx] = TubeBaseVert;
+		TubeLastRingBase[TubeIdx] = TubeBaseVert + (NumRings - 1) * VertsPerRing;
+
+		// Fill vertex data
+		for (int32 RingIdx = 0; RingIdx < NumRings; ++RingIdx)
+		{
+			const FRing& Ring = Tube.Rings[RingIdx];
+			const FVector TubeDir = Ring.Orientation.RotateVector(FVector::UpVector);
+
+			for (int32 j = 0; j <= RadialSegmentCount; ++j)
+			{
+				const int32 VI = VertIdx++;
+				const FVector LocalPos = CachedCrossSectionPoints[j] * Tube.Width;
+				const FVector WorldOffset = Ring.Orientation.RotateVector(LocalPos);
+
+				Positions[VI] = Ring.Center + WorldOffset;
+				Normals[VI] = WorldOffset.GetSafeNormal();
+				Tangents[VI] = FProcMeshTangent(TubeDir, false);
+				TexCoords[VI] = FVector2D(1.f - static_cast<float>(j) * UStep, Ring.V);
+			}
+		}
+
+		// Fill index data — connect adjacent rings within this tube
+		for (int32 RingIdx = 0; RingIdx < NumRings - 1; ++RingIdx)
+		{
+			const int32 Base1 = TubeBaseVert + RingIdx * VertsPerRing;
+			const int32 Base2 = TubeBaseVert + (RingIdx + 1) * VertsPerRing;
+
+			for (int32 j = 0; j < RadialSegmentCount; ++j)
+			{
+				const int32 V0 = Base1 + j;
+				const int32 V1 = Base1 + j + 1;
+				const int32 V2 = Base2 + j + 1;
+				const int32 V3 = Base2 + j;
+
+				Triangles[TriIdx++] = V3;
+				Triangles[TriIdx++] = V2;
+				Triangles[TriIdx++] = V0;
+
+				Triangles[TriIdx++] = V2;
+				Triangles[TriIdx++] = V1;
+				Triangles[TriIdx++] = V0;
+			}
+		}
+	}
+
+	// --- Step 4b: Offset child tube start rings into parent sphere ---
+	// Shift the first ring backward along the tube direction so it sits inside the
+	// sphere. The ring keeps its full width — the offset portion is hidden by the
+	// sphere mesh, and the tube emerges at full size with no gap.
+	{
+		TMap<FIntVector, float> ForkSphereMap;
+		for (const FForkInfo& Fork : Forks)
+		{
+			ForkSphereMap.Add(Quantize(Fork.Position), Fork.Radius);
+		}
+
+		for (int32 TubeIdx = 0; TubeIdx < Tubes.Num(); ++TubeIdx)
+		{
+			const FVector& FirstCenter = Tubes[TubeIdx].Rings[0].Center;
+			const float* SphereRadius = ForkSphereMap.Find(Quantize(FirstCenter));
+			if (!SphereRadius) continue;
+
+			const float R = *SphereRadius;
+			const float W = Tubes[TubeIdx].Width;
+			if (W >= R) continue; // same width as parent — already coincident with sphere equator
+
+			const FVector TubeDir = Tubes[TubeIdx].Rings[0].Orientation.RotateVector(FVector::UpVector);
+			const float OffsetDist = FMath::Sqrt(R * R - W * W);
+			const FVector Shift = -TubeDir * OffsetDist;
+
+			const int32 FirstRingBase = TubeFirstRingBase[TubeIdx];
+			for (int32 j = 0; j <= RadialSegmentCount; ++j)
+			{
+				Positions[FirstRingBase + j] += Shift;
+			}
+		}
+	}
+
+	// --- Step 5: Generate welded sphere joints at fork points ---
+	for (const FForkInfo& Fork : Forks)
+	{
+		GenerateSphereJoint(Fork.Position, Fork.Radius, Fork.Orientation,
+			TubeLastRingBase[Fork.ParentTubeIndex], VertIdx, TriIdx);
+	}
+
+	// --- Step 6: Generate terminal end caps ---
+	for (const FCapInfo& Cap : Caps)
+	{
+		GenerateEndCap(Cap.Center, Cap.Orientation, Cap.OutwardDir, Cap.Width, Cap.TaperLength, VertIdx, TriIdx);
+	}
+
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
+}
+
+void ABranchingLinesActor::GenerateEndCap(const FVector& RingCenter, const FQuat& RingOrientation, const FVector& OutwardDir, const float Width, const float InTaperLength, int32& InVertexIndex, int32& InTriangleIndex)
+{
+	const FVector TipPos = RingCenter + OutwardDir * InTaperLength;
+	const bool bIsTaper = InTaperLength > KINDA_SMALL_NUMBER;
+	const float SlantInvLen = bIsTaper
+		? 1.f / FMath::Sqrt(Width * Width + InTaperLength * InTaperLength)
+		: 0.f;
+
+	const FVector CapTangent = RingOrientation.RotateVector(FVector::ForwardVector);
+
+	// Center/tip vertex
+	const int32 TipIdx = InVertexIndex++;
+	Positions[TipIdx] = TipPos;
+	Normals[TipIdx] = OutwardDir;
+	Tangents[TipIdx] = FProcMeshTangent(CapTangent, false);
+	TexCoords[TipIdx] = FVector2D(0.5f, 0.5f);
+
+	// Rim vertices
+	const int32 RimBaseIdx = InVertexIndex;
+	for (int32 j = 0; j <= RadialSegmentCount; ++j)
+	{
+		const int32 VI = InVertexIndex++;
+		const FVector LocalPos = CachedCrossSectionPoints[j] * Width;
+		const FVector WorldOffset = RingOrientation.RotateVector(LocalPos);
+		Positions[VI] = RingCenter + WorldOffset;
+
+		if (bIsTaper)
+		{
+			// Cone surface normal: perpendicular to the slant surface, pointing outward
+			const FVector Radial = WorldOffset.GetSafeNormal();
+			Normals[VI] = (Radial * InTaperLength + OutwardDir * Width) * SlantInvLen;
+		}
+		else
+		{
+			Normals[VI] = OutwardDir;
+		}
+
+		Tangents[VI] = FProcMeshTangent(CapTangent, false);
+		TexCoords[VI] = FVector2D(
+			(CachedCrossSectionPoints[j].X + 1.f) * 0.5f,
+			(CachedCrossSectionPoints[j].Y + 1.f) * 0.5f);
+	}
+
+	// Triangle fan from tip to rim
+	for (int32 j = 0; j < RadialSegmentCount; ++j)
+	{
+		Triangles[InTriangleIndex++] = TipIdx;
+		Triangles[InTriangleIndex++] = RimBaseIdx + j + 1;
+		Triangles[InTriangleIndex++] = RimBaseIdx + j;
+	}
+}
+
+void ABranchingLinesActor::GenerateSphereJoint(const FVector& Center, const float Radius, const FQuat& Orientation, const int32 WeldRingBaseVertex, int32& InVertexIndex, int32& InTriangleIndex)
+{
+	// Build a sphere aligned to the parent tube's orientation so the equator ring
+	// matches the cylinder's rim vertices exactly. When WeldRingBaseVertex >= 0,
+	// the equator ring reuses existing tube vertices (true welding, no gap).
+	// When < 0, equator vertices are generated at coincident positions.
+	const int32 HemiRings = FMath::Max(RadialSegmentCount / 4, 2);
+	const int32 TotalRingSpans = 2 * HemiRings; // quad strips from pole to pole
+	const int32 VertsPerRing = RadialSegmentCount + 1;
+	const bool bWeld = WeldRingBaseVertex >= 0;
+
+	// Sphere axis aligned with parent tube direction
+	const FVector Axis = Orientation.RotateVector(FVector::UpVector);
+
+	// Vertex layout:
+	//   North hemisphere: HemiRings rings (indices 0..HemiRings-1)
+	//   Equator: ring index HemiRings (welded or new)
+	//   South hemisphere: HemiRings rings (indices HemiRings+1..TotalRingSpans)
+	const int32 NorthBase = InVertexIndex;
+	const int32 SouthBase = bWeld
+		? NorthBase + HemiRings * VertsPerRing
+		: NorthBase + (HemiRings + 1) * VertsPerRing;
+
+	auto GetRingBase = [&](int32 RingIdx) -> int32
+	{
+		if (RingIdx < HemiRings)
+			return NorthBase + RingIdx * VertsPerRing;
+		else if (RingIdx == HemiRings)
+			return bWeld ? WeldRingBaseVertex : (NorthBase + HemiRings * VertsPerRing);
+		else
+			return SouthBase + (RingIdx - HemiRings - 1) * VertsPerRing;
+	};
+
+	// Generate vertex data for all rings (skip equator if welding)
+	for (int32 RingIdx = 0; RingIdx <= TotalRingSpans; ++RingIdx)
+	{
+		if (bWeld && RingIdx == HemiRings)
+		{
+			continue; // equator is welded — reuse parent tube's last ring vertices
+		}
+
+		const float Phi = PI * static_cast<float>(RingIdx) / static_cast<float>(TotalRingSpans);
+		const float SinPhi = FMath::Sin(Phi);
+		const float CosPhi = FMath::Cos(Phi);
+		const float V = static_cast<float>(RingIdx) / static_cast<float>(TotalRingSpans);
+
+		for (int32 j = 0; j <= RadialSegmentCount; ++j)
+		{
+			const int32 VI = InVertexIndex++;
+			const FVector RadialDir = Orientation.RotateVector(CachedCrossSectionPoints[j]);
+			const FVector Normal = (RadialDir * SinPhi + Axis * CosPhi).GetSafeNormal();
+
+			Positions[VI] = Center + Normal * Radius;
+			Normals[VI] = Normal;
+
+			// Tangent along circumference
+			const FVector LocalTangent(-CachedCrossSectionPoints[j].Y, CachedCrossSectionPoints[j].X, 0.f);
+			Tangents[VI] = FProcMeshTangent(Orientation.RotateVector(LocalTangent), false);
+
+			TexCoords[VI] = FVector2D(static_cast<float>(j) / static_cast<float>(RadialSegmentCount), V);
+		}
+	}
+
+	// Generate triangles connecting adjacent rings
+	for (int32 RingIdx = 0; RingIdx < TotalRingSpans; ++RingIdx)
+	{
+		const int32 Base1 = GetRingBase(RingIdx);
+		const int32 Base2 = GetRingBase(RingIdx + 1);
+
+		for (int32 j = 0; j < RadialSegmentCount; ++j)
+		{
+			const int32 V0 = Base1 + j;
+			const int32 V1 = Base1 + j + 1;
+			const int32 V2 = Base2 + j + 1;
+			const int32 V3 = Base2 + j;
+
+			Triangles[InTriangleIndex++] = V0;
+			Triangles[InTriangleIndex++] = V2;
+			Triangles[InTriangleIndex++] = V3;
+
+			Triangles[InTriangleIndex++] = V0;
+			Triangles[InTriangleIndex++] = V1;
+			Triangles[InTriangleIndex++] = V2;
+		}
+	}
 }
 
 FVector ABranchingLinesActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)

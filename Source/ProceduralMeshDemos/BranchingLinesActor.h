@@ -60,6 +60,14 @@ struct FBranchSegment
 	}
 };
 
+UENUM(BlueprintType)
+enum class EBranchEndCapType : uint8
+{
+	None     UMETA(DisplayName = "None"),
+	Flat     UMETA(DisplayName = "Flat Cap"),
+	Taper    UMETA(DisplayName = "Taper to Point")
+};
+
 UCLASS()
 class PROCEDURALMESHDEMOS_API ABranchingLinesActor : public AActor
 {
@@ -82,6 +90,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	bool bSmoothNormals = true;
+
+	/** When enabled, connected segments are joined with smooth interpolated corners instead of leaving gaps. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	bool bSmoothJoints = false;
+
+	/** Number of interpolation steps per joint. Only used when bSmoothJoints is true. 0 = sharp miter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0", ClampMax = "32", EditCondition = "bSmoothJoints"))
+	int32 JointSegments = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	int32 RandomSeed = 1238;
@@ -120,6 +136,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	UMaterialInterface* Material;
 
+	/** How to terminate branch endpoints (roots and leaves). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	EBranchEndCapType EndCapType = EBranchEndCapType::None;
+
+	/** Length of the taper cone at each branch endpoint. Only used when EndCapType is Taper. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (EditCondition = "EndCapType == EBranchEndCapType::Taper", ClampMin = "0.1"))
+	float TaperLength = 5.0f;
+
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostLoad() override;
 
@@ -129,11 +153,15 @@ protected:
 
 private:
 	void GenerateMesh();
+	void GenerateSmoothMesh();
 	void CreateSegments();
 
 	TArray<FBranchSegment> Segments;
 
 	void GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector StartPoint, const FVector EndPoint, const float InWidth, const int32 InCrossSectionCount, int32& InVertexIndex, int32& InTriangleIndex, const bool bInSmoothNormals = true);
+
+	void GenerateEndCap(const FVector& RingCenter, const FQuat& RingOrientation, const FVector& OutwardDir, float Width, float InTaperLength, int32& InVertexIndex, int32& InTriangleIndex);
+	void GenerateSphereJoint(const FVector& Center, float Radius, const FQuat& Orientation, int32 WeldRingBaseVertex, int32& InVertexIndex, int32& InTriangleIndex);
 
 	static FVector RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles);
 	void PreCacheCrossSection();
