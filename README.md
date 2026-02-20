@@ -1,7 +1,7 @@
 
 # Procedural mesh examples for Unreal 5
 
-<img width="873" height="584" alt="procmesh_project" src="https://github.com/user-attachments/assets/97280641-b40d-4a9a-9244-bb51c048d38f" />
+<img width="995" height="522" alt="procmesh_project_2" src="https://github.com/user-attachments/assets/7cc03443-6f18-474a-a431-728b1e4d4474" />
 
 ## Overview
 I've been wanting to learn how to procedurally generate meshes in Unreal for some time now, and have noticed interest from the community as well.
