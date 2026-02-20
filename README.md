@@ -18,11 +18,12 @@ There is a lot of code duplication between the different examples which I felt w
 
 PLEASE NOTE: I update these examples from time to time to follow the latest Unreal versions.  If you get really stuck feel free to send a PR or contact me below.
 
-## Unreal Engine update notes
+## Unreal Engine 5 update notes
 
 I finally updated the project for Unreal 5 and simplified the project structure
 - Cleanup
 - Made the code simpler by using the normal engine ProceduralMeshComponent.  The other one is faster, but switching made this code example simpler
+- Derived a simple class from ProceduralMeshComponent to deal with serialization, and not saving mesh data into actor or map. Its regenerated every time its needed.
 - Simplified folder structure, merged Plugin into the main project source.
 - Deleted shadow map, turned on Lumen etc
 
