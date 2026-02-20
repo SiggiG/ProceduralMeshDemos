@@ -183,6 +183,42 @@ void ABranchingLinesActor::GenerateMesh()
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Segments[i].Start, Segments[i].End, Segments[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
 	}
 
+	// Offset child segment start-ring vertices backward along the tube direction
+	// so they sit inside the parent sphere. The ring keeps its full width — the
+	// offset portion is hidden by the sphere, and the tube emerges at full size.
+	{
+		TMap<FIntVector, float> ForkSphereMap;
+		for (const FForkInfo& Fork : Forks)
+		{
+			ForkSphereMap.Add(Quantize(Fork.Position), Fork.Radius);
+		}
+
+		const int32 VertsPerSegment = RadialSegmentCount * 4;
+		for (int32 i = 0; i < Segments.Num(); ++i)
+		{
+			const float* SphereRadius = ForkSphereMap.Find(Quantize(Segments[i].Start));
+			if (!SphereRadius) continue;
+
+			const float R = *SphereRadius;
+			const float W = Segments[i].Width;
+			if (W >= R) continue; // same width as parent — already coincident with sphere equator
+
+			const FVector SegDir = (Segments[i].End - Segments[i].Start).GetSafeNormal();
+			const float OffsetDist = FMath::Sqrt(R * R - W * W);
+			const FVector Shift = -SegDir * OffsetDist;
+
+			const int32 SegBase = i * VertsPerSegment;
+			for (int32 q = 0; q < RadialSegmentCount; ++q)
+			{
+				// P0 and P1 are the start-end vertices of each quad
+				for (int32 v = 0; v < 2; ++v)
+				{
+					Positions[SegBase + q * 4 + v] += Shift;
+				}
+			}
+		}
+	}
+
 	// Generate oriented sphere joints at fork points (aligned to parent cylinder)
 	for (const FForkInfo& Fork : Forks)
 	{
@@ -484,7 +520,9 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 	int32 VertIdx = 0;
 	int32 TriIdx = 0;
 
+	TArray<int32> TubeFirstRingBase;
 	TArray<int32> TubeLastRingBase;
+	TubeFirstRingBase.SetNum(Tubes.Num());
 	TubeLastRingBase.SetNum(Tubes.Num());
 
 	for (int32 TubeIdx = 0; TubeIdx < Tubes.Num(); ++TubeIdx)
@@ -492,6 +530,7 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 		const FTubeData& Tube = Tubes[TubeIdx];
 		const int32 NumRings = Tube.Rings.Num();
 		const int32 TubeBaseVert = VertIdx;
+		TubeFirstRingBase[TubeIdx] = TubeBaseVert;
 		TubeLastRingBase[TubeIdx] = TubeBaseVert + (NumRings - 1) * VertsPerRing;
 
 		// Fill vertex data
@@ -533,6 +572,39 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 				Triangles[TriIdx++] = V2;
 				Triangles[TriIdx++] = V1;
 				Triangles[TriIdx++] = V0;
+			}
+		}
+	}
+
+	// --- Step 4b: Offset child tube start rings into parent sphere ---
+	// Shift the first ring backward along the tube direction so it sits inside the
+	// sphere. The ring keeps its full width — the offset portion is hidden by the
+	// sphere mesh, and the tube emerges at full size with no gap.
+	{
+		TMap<FIntVector, float> ForkSphereMap;
+		for (const FForkInfo& Fork : Forks)
+		{
+			ForkSphereMap.Add(Quantize(Fork.Position), Fork.Radius);
+		}
+
+		for (int32 TubeIdx = 0; TubeIdx < Tubes.Num(); ++TubeIdx)
+		{
+			const FVector& FirstCenter = Tubes[TubeIdx].Rings[0].Center;
+			const float* SphereRadius = ForkSphereMap.Find(Quantize(FirstCenter));
+			if (!SphereRadius) continue;
+
+			const float R = *SphereRadius;
+			const float W = Tubes[TubeIdx].Width;
+			if (W >= R) continue; // same width as parent — already coincident with sphere equator
+
+			const FVector TubeDir = Tubes[TubeIdx].Rings[0].Orientation.RotateVector(FVector::UpVector);
+			const float OffsetDist = FMath::Sqrt(R * R - W * W);
+			const FVector Shift = -TubeDir * OffsetDist;
+
+			const int32 FirstRingBase = TubeFirstRingBase[TubeIdx];
+			for (int32 j = 0; j <= RadialSegmentCount; ++j)
+			{
+				Positions[FirstRingBase + j] += Shift;
 			}
 		}
 	}
