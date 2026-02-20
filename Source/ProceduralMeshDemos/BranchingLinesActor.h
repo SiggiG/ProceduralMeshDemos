@@ -83,6 +83,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	bool bSmoothNormals = true;
 
+	/** When enabled, connected segments are joined with smooth interpolated corners instead of leaving gaps. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	bool bSmoothJoints = false;
+
+	/** Number of interpolation steps per joint. Only used when bSmoothJoints is true. 0 = sharp miter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0", ClampMax = "32", EditCondition = "bSmoothJoints"))
+	int32 JointSegments = 4;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	int32 RandomSeed = 1238;
 
@@ -129,6 +137,7 @@ protected:
 
 private:
 	void GenerateMesh();
+	void GenerateSmoothMesh();
 	void CreateSegments();
 
 	TArray<FBranchSegment> Segments;

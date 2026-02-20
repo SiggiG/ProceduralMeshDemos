@@ -68,6 +68,13 @@ void ABranchingLinesActor::GenerateMesh()
 	CreateSegments();
 
 	MeshComponent->ClearAllMeshSections();
+
+	if (bSmoothJoints)
+	{
+		GenerateSmoothMesh();
+		return;
+	}
+
 	SetupMeshBuffers();
 
 	// -------------------------------------------------------
@@ -78,6 +85,281 @@ void ABranchingLinesActor::GenerateMesh()
 	for (int32 i = 0; i < Segments.Num(); i++)
 	{
 		GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Segments[i].Start, Segments[i].End, Segments[i].Width, RadialSegmentCount, VertexIndex, TriangleIndex, bSmoothNormals);
+	}
+
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	MeshComponent->SetMaterial(0, Material);
+}
+
+void ABranchingLinesActor::GenerateSmoothMesh()
+{
+	if (Segments.Num() == 0)
+	{
+		return;
+	}
+
+	// --- Step 1: Build polyline chains from the flat segment list ---
+	// Segments form a tree (from subdivision + forks). We trace chains of connected
+	// segments, breaking at fork points (where multiple segments share a start point)
+	// and at leaves (where no continuation exists).
+
+	// Quantize points to integer keys for reliable lookup
+	auto Quantize = [](const FVector& V) -> FIntVector
+	{
+		return FIntVector(
+			FMath::RoundToInt(V.X * 100.f),
+			FMath::RoundToInt(V.Y * 100.f),
+			FMath::RoundToInt(V.Z * 100.f)
+		);
+	};
+
+	// Map: quantized start point -> list of segment indices starting there
+	TMap<FIntVector, TArray<int32>> StartMap;
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		StartMap.FindOrAdd(Quantize(Segments[i].Start)).Add(i);
+	}
+
+	// Set of all quantized end points
+	TSet<FIntVector> EndPointSet;
+	for (const FBranchSegment& Seg : Segments)
+	{
+		EndPointSet.Add(Quantize(Seg.End));
+	}
+
+	// Trace chains
+	struct FChain
+	{
+		TArray<FVector> Points;
+		float Width;
+	};
+
+	TArray<FChain> Chains;
+	TSet<int32> Visited;
+
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		if (Visited.Contains(i))
+		{
+			continue;
+		}
+
+		const FIntVector StartKey = Quantize(Segments[i].Start);
+
+		// A segment starts a new chain if its Start point is either:
+		// - Not the End of any segment (root of the tree)
+		// - At a fork point (multiple segments start from the same point)
+		const bool bIsRoot = !EndPointSet.Contains(StartKey);
+		const TArray<int32>* StartsHere = StartMap.Find(StartKey);
+		const bool bIsFork = StartsHere && StartsHere->Num() > 1;
+
+		if (!bIsRoot && !bIsFork)
+		{
+			continue;
+		}
+
+		// Trace chain from this segment
+		FChain Chain;
+		Chain.Width = Segments[i].Width;
+		Chain.Points.Add(Segments[i].Start);
+
+		int32 Current = i;
+		while (Current >= 0 && !Visited.Contains(Current))
+		{
+			Visited.Add(Current);
+			Chain.Points.Add(Segments[Current].End);
+
+			// Find continuation: exactly one unvisited segment starting at this End point
+			const FIntVector EndKey = Quantize(Segments[Current].End);
+			const TArray<int32>* NextStarts = StartMap.Find(EndKey);
+
+			if (!NextStarts || NextStarts->Num() != 1)
+			{
+				break; // fork or leaf — end chain
+			}
+
+			const int32 Next = (*NextStarts)[0];
+			if (Visited.Contains(Next))
+			{
+				break;
+			}
+
+			Current = Next;
+		}
+
+		Chains.Add(MoveTemp(Chain));
+	}
+
+	// --- Step 2: Build rings for each chain and compute buffer sizes ---
+	auto MakeQuat = [](const FVector& Dir) -> FQuat
+	{
+		return FQuat::FindBetweenNormals(FVector::UpVector, Dir);
+	};
+
+	struct FRing
+	{
+		FVector Center;
+		FQuat Orientation;
+		float V;
+	};
+
+	struct FTubeData
+	{
+		TArray<FRing> Rings;
+		float Width;
+	};
+
+	const float AngleThreshold = FMath::DegreesToRadians(2.f);
+
+	TArray<FTubeData> Tubes;
+	Tubes.Reserve(Chains.Num());
+
+	for (const FChain& Chain : Chains)
+	{
+		if (Chain.Points.Num() < 2)
+		{
+			continue;
+		}
+
+		const int32 NumSeg = Chain.Points.Num() - 1;
+
+		// Compute segment directions
+		TArray<FVector> Dirs;
+		Dirs.Reserve(NumSeg);
+		for (int32 s = 0; s < NumSeg; ++s)
+		{
+			const FVector Delta = Chain.Points[s + 1] - Chain.Points[s];
+			const float Len = Delta.Size();
+			Dirs.Add(Len > KINDA_SMALL_NUMBER ? Delta / Len : FVector::UpVector);
+		}
+
+		FTubeData Tube;
+		Tube.Width = Chain.Width;
+
+		// First endpoint ring
+		Tube.Rings.Add({Chain.Points[0], MakeQuat(Dirs[0]), 1.f});
+
+		// Interior joints
+		for (int32 p = 0; p < NumSeg - 1; ++p)
+		{
+			const FVector& DirIn = Dirs[p];
+			const FVector& DirOut = Dirs[p + 1];
+			const FVector& JointPt = Chain.Points[p + 1];
+
+			const float CosAlpha = FMath::Clamp(FVector::DotProduct(DirIn, DirOut), -1.f, 1.f);
+			const float Alpha = FMath::Acos(CosAlpha);
+
+			if (Alpha < AngleThreshold)
+			{
+				// Nearly straight — two coincident rings to reset V
+				Tube.Rings.Add({JointPt, MakeQuat(DirIn), 0.f});
+				Tube.Rings.Add({JointPt, MakeQuat(DirOut), 1.f});
+			}
+			else if (JointSegments <= 0 || Alpha > PI - AngleThreshold)
+			{
+				// Sharp miter
+				FVector MiterDir = (DirIn + DirOut);
+				if (MiterDir.SizeSquared() < KINDA_SMALL_NUMBER)
+				{
+					MiterDir = DirOut;
+				}
+				const FQuat MiterQ = MakeQuat(MiterDir.GetSafeNormal());
+				Tube.Rings.Add({JointPt, MiterQ, 0.f});
+				Tube.Rings.Add({JointPt, MiterQ, 1.f});
+			}
+			else
+			{
+				// Smooth spherical joint: slerp from incoming to outgoing
+				const FQuat QIn = MakeQuat(DirIn);
+				const FQuat QOut = MakeQuat(DirOut);
+
+				for (int32 j = 0; j <= JointSegments; ++j)
+				{
+					const float T = static_cast<float>(j) / static_cast<float>(JointSegments);
+					Tube.Rings.Add({JointPt, FQuat::Slerp(QIn, QOut, T), T});
+				}
+			}
+		}
+
+		// Last endpoint ring
+		Tube.Rings.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), 0.f});
+
+		Tubes.Add(MoveTemp(Tube));
+	}
+
+	// --- Step 3: Allocate mesh buffers ---
+	const int32 VertsPerRing = RadialSegmentCount + 1;
+	int32 TotalVerts = 0;
+	int32 TotalIndices = 0;
+
+	for (const FTubeData& Tube : Tubes)
+	{
+		TotalVerts += Tube.Rings.Num() * VertsPerRing;
+		TotalIndices += (Tube.Rings.Num() - 1) * RadialSegmentCount * 6;
+	}
+
+	if (TotalVerts == 0)
+	{
+		return;
+	}
+
+	Positions.SetNumUninitialized(TotalVerts);
+	Normals.SetNumUninitialized(TotalVerts);
+	Tangents.SetNumUninitialized(TotalVerts);
+	TexCoords.SetNumUninitialized(TotalVerts);
+	Triangles.SetNumUninitialized(TotalIndices);
+
+	// --- Step 4: Fill mesh buffers ---
+	const float UStep = 1.f / static_cast<float>(RadialSegmentCount);
+	int32 VertIdx = 0;
+	int32 TriIdx = 0;
+
+	for (const FTubeData& Tube : Tubes)
+	{
+		const int32 NumRings = Tube.Rings.Num();
+		const int32 TubeBaseVert = VertIdx;
+
+		// Fill vertex data
+		for (int32 RingIdx = 0; RingIdx < NumRings; ++RingIdx)
+		{
+			const FRing& Ring = Tube.Rings[RingIdx];
+			const FVector TubeDir = Ring.Orientation.RotateVector(FVector::UpVector);
+
+			for (int32 j = 0; j <= RadialSegmentCount; ++j)
+			{
+				const int32 VI = VertIdx++;
+				const FVector LocalPos = CachedCrossSectionPoints[j] * Tube.Width;
+				const FVector WorldOffset = Ring.Orientation.RotateVector(LocalPos);
+
+				Positions[VI] = Ring.Center + WorldOffset;
+				Normals[VI] = WorldOffset.GetSafeNormal();
+				Tangents[VI] = FProcMeshTangent(TubeDir, false);
+				TexCoords[VI] = FVector2D(1.f - static_cast<float>(j) * UStep, Ring.V);
+			}
+		}
+
+		// Fill index data — connect adjacent rings within this tube
+		for (int32 RingIdx = 0; RingIdx < NumRings - 1; ++RingIdx)
+		{
+			const int32 Base1 = TubeBaseVert + RingIdx * VertsPerRing;
+			const int32 Base2 = TubeBaseVert + (RingIdx + 1) * VertsPerRing;
+
+			for (int32 j = 0; j < RadialSegmentCount; ++j)
+			{
+				const int32 V0 = Base1 + j;
+				const int32 V1 = Base1 + j + 1;
+				const int32 V2 = Base2 + j + 1;
+				const int32 V3 = Base2 + j;
+
+				Triangles[TriIdx++] = V3;
+				Triangles[TriIdx++] = V2;
+				Triangles[TriIdx++] = V0;
+
+				Triangles[TriIdx++] = V2;
+				Triangles[TriIdx++] = V1;
+				Triangles[TriIdx++] = V0;
+			}
+		}
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
