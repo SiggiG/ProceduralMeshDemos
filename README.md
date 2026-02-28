@@ -114,10 +114,8 @@ Grid mesh with an animated Z axis using sine and cosine.
 ##### More examples!
 I want to provide more examples in the future, and would love if members of the community could provide some! Of course you will get full credit for your contributions.
 
-- [ ] Proper UV maps for Sierpinski pyramid and branching lines
 - [ ] Sphere
 - [ ] Sierpinski pyramid without lines
-- [ ] Mesh exporter function that creates a new static mesh asset in the editor.
 - [ ] Proper L-systems
 - [ ] Animated lightning
 - [ ] Geometry shaders?
