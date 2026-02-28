@@ -14,13 +14,30 @@ ASimpleCubeActor::ASimpleCubeActor()
 void ASimpleCubeActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASimpleCubeActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASimpleCubeActor::PostLoad()
 {
 	Super::PostLoad();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASimpleCubeActor::SetupMeshBuffers()

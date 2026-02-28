@@ -16,9 +16,25 @@ void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 	SetActorTickEnabled(AnimateMesh);
-	bMeshCreated = false;
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		bMeshCreated = false;
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void AHeightFieldAnimatedActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void AHeightFieldAnimatedActor::PostLoad()
 {
@@ -26,6 +42,7 @@ void AHeightFieldAnimatedActor::PostLoad()
 	SetActorTickEnabled(AnimateMesh);
 	bMeshCreated = false;
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void AHeightFieldAnimatedActor::SetupMeshBuffers()

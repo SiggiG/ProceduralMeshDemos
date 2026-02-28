@@ -14,15 +14,32 @@ ABranchingMeshActor::ABranchingMeshActor()
 void ABranchingMeshActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	PreCacheCrossSection();
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		PreCacheCrossSection();
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ABranchingMeshActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ABranchingMeshActor::PostLoad()
 {
 	Super::PostLoad();
 	PreCacheCrossSection();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ABranchingMeshActor::PreCacheCrossSection()

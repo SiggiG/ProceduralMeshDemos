@@ -14,10 +14,26 @@ ASierpinskiLineActor::ASierpinskiLineActor()
 void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	PreCacheCrossSection();
-	GenerateLines();
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		PreCacheCrossSection();
+		GenerateLines();
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASierpinskiLineActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASierpinskiLineActor::PostLoad()
 {
@@ -25,6 +41,7 @@ void ASierpinskiLineActor::PostLoad()
 	PreCacheCrossSection();
 	GenerateLines();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASierpinskiLineActor::SetupMeshBuffers()

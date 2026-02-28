@@ -14,13 +14,30 @@ ASimpleCylinderActor::ASimpleCylinderActor()
 void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASimpleCylinderActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASimpleCylinderActor::PostLoad()
 {
 	Super::PostLoad();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASimpleCylinderActor::SetupMeshBuffers()

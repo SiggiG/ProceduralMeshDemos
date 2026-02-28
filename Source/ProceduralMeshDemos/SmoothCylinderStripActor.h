@@ -42,12 +42,17 @@ public:
 
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
 	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
+	bool bRequiresMeshRebuild = false;
+
 	void GenerateMesh();
 	void PreCacheCrossSection();
 
