@@ -153,7 +153,7 @@ void ASierpinskiTetrahedron::AddTetrahedronPolygons(const FTetrahedronStructure&
 	AddPolygon(Tetrahedron.RightFaceLeftPoint, Tetrahedron.RightFaceLeftPointUV, Tetrahedron.RightFaceRightPoint, Tetrahedron.RightFaceRightPointUV, Tetrahedron.RightFaceTopPoint, Tetrahedron.RightFaceTopPointUV, Tetrahedron.RightFaceNormal, InVertices, InTriangles, InNormals, InTangents, InTexCoords, VertexIndex, TriangleIndex);
 }
 
-void ASierpinskiTetrahedron::AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, const FVector FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
+void ASierpinskiTetrahedron::AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, const FVector& FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex)
 {
 	// Reserve indexes and assign the vertices
 	const int32 Point1Index = VertexIndex++;

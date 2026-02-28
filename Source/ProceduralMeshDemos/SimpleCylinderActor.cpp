@@ -270,7 +270,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 
 			// Tangents (perpendicular to the surface)
 			SurfaceTangentCapVec = (P0 - P1).GetSafeNormal();
-			const FProcMeshTangent SurfaceTangentCapB(SurfaceTangentVec, /*bFlipTangentY=*/ false);
+			const FProcMeshTangent SurfaceTangentCapB(SurfaceTangentCapVec, /*bFlipTangentY=*/ false);
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCapB;
 		}
 	}
