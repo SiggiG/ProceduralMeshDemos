@@ -60,6 +60,7 @@ private:
 
 	TArray<float> HeightValues;
 	float MaxHeightValue = 0.0f;
+	bool bMeshCreated = false;
 
 	// Mesh buffers
 	void SetupMeshBuffers();

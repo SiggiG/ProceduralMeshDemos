@@ -14,12 +14,14 @@ AHeightFieldAnimatedActor::AHeightFieldAnimatedActor()
 void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	bMeshCreated = false;
 	GenerateMesh();
 }
 
 void AHeightFieldAnimatedActor::PostLoad()
 {
 	Super::PostLoad();
+	bMeshCreated = false;
 	GenerateMesh();
 }
 
@@ -58,6 +60,7 @@ void AHeightFieldAnimatedActor::GeneratePoints()
 	// Combine variations of sine and cosine to create some variable waves
 	// TODO Convert this to use a parallel for
 	int32 PointIndex = 0;
+	MaxHeightValue = 0.0f;
 
 	for (int32 X = 0; X < LengthSections + 1; X++)
 	{
@@ -94,20 +97,30 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 		return;
 	}
 
-	MeshComponent->ClearAllMeshSections();
-
 	if (Size.X < 1 || Size.Y < 1 || LengthSections < 1 || WidthSections < 1)
 	{
+		MeshComponent->ClearAllMeshSections();
+		bMeshCreated = false;
 		return;
 	}
 
 	SetupMeshBuffers();
 	GeneratePoints();
-
-	// TODO Convert this to use fast-past updates instead of regenerating the mesh every frame
 	GenerateGrid(Positions, Triangles, Normals, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
-	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, {}, false);
-	MeshComponent->SetMaterial(0, Material);
+
+	if (bMeshCreated)
+	{
+		// Fast path: update positions and normals in-place without recreating the scene proxy
+		MeshComponent->UpdateMeshSection(0, Positions, Normals, TexCoords, {}, {}, {}, {}, {});
+	}
+	else
+	{
+		// Initial creation
+		MeshComponent->ClearAllMeshSections();
+		MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, {}, false);
+		MeshComponent->SetMaterial(0, Material);
+		bMeshCreated = true;
+	}
 }
 
 void AHeightFieldAnimatedActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
