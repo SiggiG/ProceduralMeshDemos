@@ -47,7 +47,7 @@ private:
 	static FVector RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles);
 	void PreCacheCrossSection();
 
-	int32 LastCachedCrossSectionCount;
+	int32 LastCachedCrossSectionCount = -1;
 	TArray<FVector> CachedCrossSectionPoints;
 
 	// Mesh buffers

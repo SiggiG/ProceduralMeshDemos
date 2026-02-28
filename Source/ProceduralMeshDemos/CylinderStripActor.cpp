@@ -99,6 +99,7 @@ void ACylinderStripActor::PreCacheCrossSection()
 	// Generate a cross-section for use in cylinder generation
 	const float AngleBetweenQuads = (2.0f / (float)(RadialSegmentCount)) * PI;
 	CachedCrossSectionPoints.Empty();
+	CachedCrossSectionPoints.Reserve(RadialSegmentCount + 2);
 
 	// Pre-calculate cross section points of a circle, two more than needed
 	for (int32 PointIndex = 0; PointIndex < (RadialSegmentCount + 2); PointIndex++)

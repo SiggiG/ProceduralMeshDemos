@@ -34,6 +34,7 @@ void ABranchingMeshActor::PreCacheCrossSection()
 
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(RadialSegmentCount)) * PI;
 	CachedCrossSectionPoints.Empty();
+	CachedCrossSectionPoints.Reserve(RadialSegmentCount + 2);
 
 	for (int32 PointIndex = 0; PointIndex < (RadialSegmentCount + 2); PointIndex++)
 	{

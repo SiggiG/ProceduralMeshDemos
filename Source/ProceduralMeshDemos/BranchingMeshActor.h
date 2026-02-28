@@ -159,7 +159,7 @@ private:
 
 	FRandomStream RngStream;
 
-	int32 LastCachedCrossSectionCount = 0;
+	int32 LastCachedCrossSectionCount = -1;
 	TArray<FVector> CachedCrossSectionPoints;
 
 	// Mesh buffers — no UPROPERTY to avoid CDO serialization
