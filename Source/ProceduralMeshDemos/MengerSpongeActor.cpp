@@ -242,6 +242,8 @@ void AMengerSpongeActor::GenerateMesh()
 						P2 = CellCenter + FVector(-HalfCell,  HalfCell, -HalfCell);
 						P3 = CellCenter + FVector(-HalfCell, -HalfCell, -HalfCell);
 						break;
+					default:
+						UE_ASSUME(false);
 					}
 
 					BuildQuad(Positions, Triangles, Normals, Tangents, TexCoords, P0, P1, P2, P3, VertexOffset, TriangleOffset, Normal, Tangent);

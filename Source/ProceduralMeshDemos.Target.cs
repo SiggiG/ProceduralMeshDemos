@@ -9,6 +9,7 @@ public class ProceduralMeshDemosTarget : TargetRules
     {
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 
 		ExtraModuleNames.AddRange(new string[] { "ProceduralMeshDemos" });
     }
