@@ -7,6 +7,7 @@
 AHeightFieldAnimatedActor::AHeightFieldAnimatedActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	MeshComponent = CreateDefaultSubobject<URuntimeProceduralMeshComponent>(TEXT("ProceduralMesh"));
 	SetRootComponent(MeshComponent);
 }
@@ -14,6 +15,7 @@ AHeightFieldAnimatedActor::AHeightFieldAnimatedActor()
 void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+	SetActorTickEnabled(AnimateMesh);
 	bMeshCreated = false;
 	GenerateMesh();
 }
@@ -21,6 +23,7 @@ void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 void AHeightFieldAnimatedActor::PostLoad()
 {
 	Super::PostLoad();
+	SetActorTickEnabled(AnimateMesh);
 	bMeshCreated = false;
 	GenerateMesh();
 }
@@ -118,7 +121,10 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 		// Initial creation
 		MeshComponent->ClearAllMeshSections();
 		MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, {}, false);
-		MeshComponent->SetMaterial(0, Material);
+		if (Material)
+		{
+			MeshComponent->SetMaterial(0, Material);
+		}
 		bMeshCreated = true;
 	}
 }

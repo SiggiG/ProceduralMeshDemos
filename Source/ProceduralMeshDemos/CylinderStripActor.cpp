@@ -79,7 +79,10 @@ void ACylinderStripActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 FVector ACylinderStripActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)

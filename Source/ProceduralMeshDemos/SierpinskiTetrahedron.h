@@ -28,7 +28,6 @@ struct FTetrahedronStructure
 	FVector CornerBottomMiddle;
 	FVector CornerTop;
 
-	// Remove these and provide ways to calculate them instead
 	FVector FrontFaceLeftPoint;
 	FVector2D FrontFaceLeftPointUV;
 	FVector FrontFaceRightPoint;
@@ -123,7 +122,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float Size = 400.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0", ClampMax = "8"))
 	int32 Iterations = 5; // 4^5 = 1024 tetrahedrons
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")

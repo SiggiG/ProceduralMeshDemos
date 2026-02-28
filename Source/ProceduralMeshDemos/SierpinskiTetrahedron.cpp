@@ -58,6 +58,7 @@ void ASierpinskiTetrahedron::GenerateMesh()
 		return;
 	}
 
+	Iterations = FMath::Clamp(Iterations, 0, 8);
 	MeshComponent->ClearAllMeshSections();
 	SetupMeshBuffers();
 
@@ -80,7 +81,10 @@ void ASierpinskiTetrahedron::GenerateMesh()
 	GenerateTetrahedron(FirstTetrahedron, 0, Positions, Triangles, Normals, Tangents, TexCoords, VertexIndex, TriangleIndex);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void ASierpinskiTetrahedron::GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const

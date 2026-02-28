@@ -81,7 +81,10 @@ void ASimpleCylinderActor::GenerateMesh()
 	GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Height, Radius, RadialSegmentCount, bCapEnds, bDoubleSided, bSmoothNormals);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds, const bool bInDoubleSided, const bool bInSmoothNormals/* = true*/)
