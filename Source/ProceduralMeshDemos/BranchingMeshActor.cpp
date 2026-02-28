@@ -384,6 +384,11 @@ void ABranchingMeshActor::BuildTreeSpaceColonization(TArray<FBranchNode>& OutNod
 
 // --- Catmull-Rom spline helpers ---
 
+static float SafeDiv(float Num, float Den)
+{
+	return FMath::Abs(Den) > KINDA_SMALL_NUMBER ? Num / Den : 0.f;
+}
+
 float ABranchingMeshActor::CatmullRomKnot(float Ti, const FVector& Pi, const FVector& Pj, float Alpha)
 {
 	const float Dist = FVector::Dist(Pi, Pj);
@@ -400,11 +405,6 @@ FVector ABranchingMeshActor::EvalCatmullRom(const FVector& P0, const FVector& P1
 
 	// Map input T from [0,1] to [T1,T2]
 	const float Kt = FMath::Lerp(T1, T2, T);
-
-	auto SafeDiv = [](float Num, float Den) -> float
-	{
-		return FMath::Abs(Den) > KINDA_SMALL_NUMBER ? Num / Den : 0.f;
-	};
 
 	const FVector A1 = P0 * SafeDiv(T1 - Kt, T1 - T0) + P1 * SafeDiv(Kt - T0, T1 - T0);
 	const FVector A2 = P1 * SafeDiv(T2 - Kt, T2 - T1) + P2 * SafeDiv(Kt - T1, T2 - T1);
