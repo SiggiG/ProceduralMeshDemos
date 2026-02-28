@@ -18,15 +18,32 @@ ABranchingLinesActor::ABranchingLinesActor()
 void ABranchingLinesActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	PreCacheCrossSection();
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		PreCacheCrossSection();
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ABranchingLinesActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ABranchingLinesActor::PostLoad()
 {
 	Super::PostLoad();
 	PreCacheCrossSection();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ABranchingLinesActor::SetupMeshBuffers()
@@ -235,7 +252,10 @@ void ABranchingLinesActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void ABranchingLinesActor::GenerateSmoothMesh()
@@ -623,7 +643,10 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void ABranchingLinesActor::GenerateEndCap(const FVector& RingCenter, const FQuat& RingOrientation, const FVector& OutwardDir, const float Width, const float InTaperLength, int32& InVertexIndex, int32& InTriangleIndex)
@@ -782,6 +805,7 @@ void ABranchingLinesActor::PreCacheCrossSection()
 	// Generate a cross-section for use in cylinder generation
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(RadialSegmentCount)) * PI;
 	CachedCrossSectionPoints.Empty();
+	CachedCrossSectionPoints.Reserve(RadialSegmentCount + 2);
 
 	// Pre-calculate cross section points of a circle, two more than needed
 	for (int32 PointIndex = 0; PointIndex < (RadialSegmentCount + 2); PointIndex++)

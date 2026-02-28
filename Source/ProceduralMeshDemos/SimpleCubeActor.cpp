@@ -14,13 +14,30 @@ ASimpleCubeActor::ASimpleCubeActor()
 void ASimpleCubeActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASimpleCubeActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASimpleCubeActor::PostLoad()
 {
 	Super::PostLoad();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASimpleCubeActor::SetupMeshBuffers()
@@ -59,7 +76,10 @@ void ASimpleCubeActor::GenerateMesh()
 	GenerateCube(Positions, Triangles, Normals, Tangents, TexCoords, Size);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void ASimpleCubeActor::GenerateCube(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector InSize)

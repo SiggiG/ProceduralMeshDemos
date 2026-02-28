@@ -14,13 +14,30 @@ AHeightFieldNoiseActor::AHeightFieldNoiseActor()
 void AHeightFieldNoiseActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void AHeightFieldNoiseActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void AHeightFieldNoiseActor::PostLoad()
 {
 	Super::PostLoad();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void AHeightFieldNoiseActor::SetupMeshBuffers()
@@ -87,7 +104,10 @@ void AHeightFieldNoiseActor::GenerateMesh()
 	GenerateGrid(Positions, Triangles, Normals, Tangents, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)

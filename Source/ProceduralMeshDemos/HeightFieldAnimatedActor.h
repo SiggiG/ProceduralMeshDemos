@@ -43,6 +43,9 @@ public:
 
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -60,6 +63,8 @@ private:
 
 	TArray<float> HeightValues;
 	float MaxHeightValue = 0.0f;
+	bool bMeshCreated = false;
+	bool bRequiresMeshRebuild = false;
 
 	// Mesh buffers
 	void SetupMeshBuffers();

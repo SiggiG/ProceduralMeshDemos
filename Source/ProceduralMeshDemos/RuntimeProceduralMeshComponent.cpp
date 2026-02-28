@@ -35,13 +35,15 @@ UBodySetup* URuntimeProceduralMeshComponent::GetBodySetup()
 
 void URuntimeProceduralMeshComponent::Serialize(FArchive& Ar)
 {
-	// Only intercept persistent saves to disk (level saves, asset saves).
-	// Skip during transactions (undo/redo), duplications (construction script re-run),
-	// and other non-persistent archives to avoid clearing the in-memory mesh state.
-	if (Ar.IsSaving() && Ar.IsPersistent() && !Ar.IsTransacting())
+	// Intercept saves that would serialize large mesh data:
+	// - Persistent saves (level/asset saves to disk)
+	// - Transaction saves (undo snapshots when moving/editing in editor)
+	// The mesh is always regenerated from the owning actor's parameters,
+	// so there's no need to store vertex data in either case.
+	if (Ar.IsSaving() && (Ar.IsPersistent() || Ar.IsTransacting()))
 	{
 		// Save the current mesh sections so we can restore them after serialization.
-		// This keeps the in-memory visual state intact after a save; without the restore
+		// This keeps the in-memory visual state intact; without the restore
 		// the viewport mesh would disappear until the next OnConstruction call.
 		const int32 NumSections = GetNumSections();
 		TArray<FProcMeshSection> SavedSections;
@@ -54,7 +56,7 @@ void URuntimeProceduralMeshComponent::Serialize(FArchive& Ar)
 			}
 		}
 
-		// Clear mesh and collision data so nothing large is written to the asset.
+		// Clear mesh and collision data so nothing large is written.
 		ClearAllMeshSections();
 		ClearCollisionConvexMeshes();
 

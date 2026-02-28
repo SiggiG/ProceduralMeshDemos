@@ -14,15 +14,32 @@ ABranchingMeshActor::ABranchingMeshActor()
 void ABranchingMeshActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	PreCacheCrossSection();
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		PreCacheCrossSection();
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ABranchingMeshActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ABranchingMeshActor::PostLoad()
 {
 	Super::PostLoad();
 	PreCacheCrossSection();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ABranchingMeshActor::PreCacheCrossSection()
@@ -34,6 +51,7 @@ void ABranchingMeshActor::PreCacheCrossSection()
 
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(RadialSegmentCount)) * PI;
 	CachedCrossSectionPoints.Empty();
+	CachedCrossSectionPoints.Reserve(RadialSegmentCount + 2);
 
 	for (int32 PointIndex = 0; PointIndex < (RadialSegmentCount + 2); PointIndex++)
 	{
@@ -383,6 +401,11 @@ void ABranchingMeshActor::BuildTreeSpaceColonization(TArray<FBranchNode>& OutNod
 
 // --- Catmull-Rom spline helpers ---
 
+static float SafeDiv(float Num, float Den)
+{
+	return FMath::Abs(Den) > KINDA_SMALL_NUMBER ? Num / Den : 0.f;
+}
+
 float ABranchingMeshActor::CatmullRomKnot(float Ti, const FVector& Pi, const FVector& Pj, float Alpha)
 {
 	const float Dist = FVector::Dist(Pi, Pj);
@@ -399,11 +422,6 @@ FVector ABranchingMeshActor::EvalCatmullRom(const FVector& P0, const FVector& P1
 
 	// Map input T from [0,1] to [T1,T2]
 	const float Kt = FMath::Lerp(T1, T2, T);
-
-	auto SafeDiv = [](float Num, float Den) -> float
-	{
-		return FMath::Abs(Den) > KINDA_SMALL_NUMBER ? Num / Den : 0.f;
-	};
 
 	const FVector A1 = P0 * SafeDiv(T1 - Kt, T1 - T0) + P1 * SafeDiv(Kt - T0, T1 - T0);
 	const FVector A2 = P1 * SafeDiv(T2 - Kt, T2 - T1) + P2 * SafeDiv(Kt - T1, T2 - T1);
@@ -1171,7 +1189,10 @@ void ABranchingMeshActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 
 	// Collision
 	GenerateCollision(BranchPaths);

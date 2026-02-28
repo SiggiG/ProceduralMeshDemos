@@ -28,7 +28,6 @@ struct FTetrahedronStructure
 	FVector CornerBottomMiddle;
 	FVector CornerTop;
 
-	// Remove these and provide ways to calculate them instead
 	FVector FrontFaceLeftPoint;
 	FVector2D FrontFaceLeftPointUV;
 	FVector FrontFaceRightPoint;
@@ -123,7 +122,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float Size = 400.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0", ClampMax = "8"))
 	int32 Iterations = 5; // 4^5 = 1024 tetrahedrons
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
@@ -131,18 +130,22 @@ public:
 
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
 	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
+	bool bRequiresMeshRebuild = false;
 
 	void GenerateMesh();
 
 	void GenerateTetrahedron(const FTetrahedronStructure& Tetrahedron, int32 InDepth, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex) const;
 	static void AddTetrahedronPolygons(const FTetrahedronStructure& Tetrahedron, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
-	static void AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, FVector const FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
+	static void AddPolygon(const FVector& Point1, const FVector2D& Point1UV, const FVector& Point2, const FVector2D& Point2UV, const FVector& Point3, const FVector2D& Point3UV, const FVector& FaceNormal, TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, int32& VertexIndex, int32& TriangleIndex);
 	void SetTetrahedronUV(FTetrahedronStructure& Tetrahedron) const;
 	FVector2D GetUVForSide(const FVector Point, const ETetrahedronSide Side) const;
 

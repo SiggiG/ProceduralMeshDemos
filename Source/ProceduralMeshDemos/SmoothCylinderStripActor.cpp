@@ -14,15 +14,32 @@ ASmoothCylinderStripActor::ASmoothCylinderStripActor()
 void ASmoothCylinderStripActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	PreCacheCrossSection();
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		PreCacheCrossSection();
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASmoothCylinderStripActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASmoothCylinderStripActor::PostLoad()
 {
 	Super::PostLoad();
 	PreCacheCrossSection();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASmoothCylinderStripActor::PreCacheCrossSection()
@@ -223,5 +240,8 @@ void ASmoothCylinderStripActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }

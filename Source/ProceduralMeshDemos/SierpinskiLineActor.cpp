@@ -14,10 +14,26 @@ ASierpinskiLineActor::ASierpinskiLineActor()
 void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	PreCacheCrossSection();
-	GenerateLines();
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		PreCacheCrossSection();
+		GenerateLines();
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASierpinskiLineActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASierpinskiLineActor::PostLoad()
 {
@@ -25,6 +41,7 @@ void ASierpinskiLineActor::PostLoad()
 	PreCacheCrossSection();
 	GenerateLines();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASierpinskiLineActor::SetupMeshBuffers()
@@ -74,7 +91,10 @@ void ASierpinskiLineActor::GenerateMesh()
 	}
 	
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 FVector ASierpinskiLineActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)
@@ -94,6 +114,7 @@ void ASierpinskiLineActor::PreCacheCrossSection()
 	// Generate a cross-section for use in cylinder generation
 	const float AngleBetweenQuads = (2.0f / static_cast<float>(RadialSegmentCount)) * PI;
 	CachedCrossSectionPoints.Empty();
+	CachedCrossSectionPoints.Reserve(RadialSegmentCount + 2);
 
 	// Pre-calculate cross section points of a circle, two more than needed
 	for (int32 PointIndex = 0; PointIndex < (RadialSegmentCount + 2); PointIndex++)

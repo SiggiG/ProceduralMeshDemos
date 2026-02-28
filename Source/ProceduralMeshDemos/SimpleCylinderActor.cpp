@@ -14,13 +14,30 @@ ASimpleCylinderActor::ASimpleCylinderActor()
 void ASimpleCylinderActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	GenerateMesh();
+
+	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
+	{
+		GenerateMesh();
+		bRequiresMeshRebuild = false;
+	}
 }
+
+#if WITH_EDITOR
+void ASimpleCylinderActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	{
+		bRequiresMeshRebuild = true;
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
 
 void ASimpleCylinderActor::PostLoad()
 {
 	Super::PostLoad();
 	GenerateMesh();
+	bRequiresMeshRebuild = false;
 }
 
 void ASimpleCylinderActor::SetupMeshBuffers()
@@ -81,7 +98,10 @@ void ASimpleCylinderActor::GenerateMesh()
 	GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Height, Radius, RadialSegmentCount, bCapEnds, bDoubleSided, bSmoothNormals);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	MeshComponent->SetMaterial(0, Material);
+	if (Material)
+	{
+		MeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds, const bool bInDoubleSided, const bool bInSmoothNormals/* = true*/)
@@ -270,7 +290,7 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 
 			// Tangents (perpendicular to the surface)
 			SurfaceTangentCapVec = (P0 - P1).GetSafeNormal();
-			const FProcMeshTangent SurfaceTangentCapB(SurfaceTangentVec, /*bFlipTangentY=*/ false);
+			const FProcMeshTangent SurfaceTangentCapB(SurfaceTangentCapVec, /*bFlipTangentY=*/ false);
 			InTangents[VertIndex1] = InTangents[VertIndex2] = InTangents[VertIndex3] = SurfaceTangentCapB;
 		}
 	}

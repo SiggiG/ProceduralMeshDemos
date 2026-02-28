@@ -146,12 +146,17 @@ public:
 
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient)
 	URuntimeProceduralMeshComponent* MeshComponent;
 
 private:
+	bool bRequiresMeshRebuild = false;
+
 	void GenerateMesh();
 	void GenerateSmoothMesh();
 	void CreateSegments();
@@ -166,7 +171,7 @@ private:
 	static FVector RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles);
 	void PreCacheCrossSection();
 
-	int32 LastCachedCrossSectionCount;
+	int32 LastCachedCrossSectionCount = -1;
 	TArray<FVector> CachedCrossSectionPoints;
 
 	TArray<FVector> OffsetDirections;
