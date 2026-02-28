@@ -115,7 +115,6 @@ Grid mesh with an animated Z axis using sine and cosine.
 I want to provide more examples in the future, and would love if members of the community could provide some! Of course you will get full credit for your contributions.
 
 - [ ] Sphere
-- [ ] Sierpinski pyramid without lines
 - [ ] Proper L-systems
 - [ ] Animated lightning
 - [ ] Geometry shaders?
