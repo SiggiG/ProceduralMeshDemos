@@ -987,6 +987,8 @@ void ABranchingMeshActor::GenerateEndCaps(const TArray<FBranchNode>& Nodes, cons
 
 void ABranchingMeshActor::GenerateCollision(const TArray<FBranchPath>& Paths)
 {
+	MeshComponent->ClearCollisionConvexMeshes();
+
 	if (CollisionType == EBranchCollisionType::None)
 	{
 		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);

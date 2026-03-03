@@ -128,9 +128,9 @@ void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<in
 			const int32 TopRightIndex = VertexIndex++;
 			const int32 TopLeftIndex = VertexIndex++;
 
-			const int32 NoiseIndex_BottomLeft = (X * InWidthSections) + Y;
+			const int32 NoiseIndex_BottomLeft = (X * (InWidthSections + 1)) + Y;
 			const int32 NoiseIndex_BottomRight = NoiseIndex_BottomLeft + 1;
-			const int32 NoiseIndex_TopLeft = ((X+1) * InWidthSections) + Y;
+			const int32 NoiseIndex_TopLeft = ((X + 1) * (InWidthSections + 1)) + Y;
 			const int32 NoiseIndex_TopRight = NoiseIndex_TopLeft + 1;
 
 			const FVector PBottomLeft = FVector(X * SectionSize.X, Y * SectionSize.Y, InHeightValues[NoiseIndex_BottomLeft]);

@@ -30,7 +30,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float Radius = 10.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "3"))
 	int32 RadialSegmentCount = 10;
 
 	/** Number of interpolation steps per joint. 0 = sharp miter, higher = smoother arc. */

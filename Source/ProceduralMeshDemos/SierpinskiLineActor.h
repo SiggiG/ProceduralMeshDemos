@@ -57,7 +57,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float Size = 400.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0", ClampMax = "8"))
 	int32 Iterations = 5;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
@@ -66,7 +66,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float ThicknessMultiplierPerGeneration = 0.8f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "3"))
 	int32 RadialSegmentCount = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
