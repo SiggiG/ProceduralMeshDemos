@@ -126,16 +126,17 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 
 	SetupMeshBuffers();
 	GeneratePoints();
-	GenerateGrid(Positions, Triangles, Normals, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 
 	if (bMeshCreated)
 	{
-		// Fast path: update positions and normals in-place without recreating the scene proxy
+		// Fast path: only recompute positions and normals, skip triangles and UVs
+		UpdatePositionsAndNormals(FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 		MeshComponent->UpdateMeshSection(0, Positions, Normals, TexCoords, {}, {}, {}, {}, {});
 	}
 	else
 	{
-		// Initial creation
+		// Full rebuild: topology + positions + normals + UVs
+		GenerateGrid(FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 		MeshComponent->ClearAllMeshSections();
 		MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, {}, false);
 		if (Material)
@@ -146,55 +147,73 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 	}
 }
 
-void AHeightFieldAnimatedActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
+void AHeightFieldAnimatedActor::GenerateGrid(const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
 {
-	// Note the coordinates are a bit weird here since I aligned it to the transform (X is forwards or "up", which Y is to the right)
-	// Should really fix this up and use standard X, Y coords then transform into object space?
 	const FVector2D SectionSize = FVector2D(InSize.X / InLengthSections, InSize.Y / InWidthSections);
 	int32 VertexIndex = 0;
 	int32 TriangleIndex = 0;
 
 	const float LengthSectionsAsFloat = static_cast<float>(InLengthSections);
 	const float WidthSectionsAsFloat = static_cast<float>(InWidthSections);
-	
+
 	for (int32 X = 0; X < InLengthSections + 1; X++)
 	{
 		for (int32 Y = 0; Y < InWidthSections + 1; Y++)
 		{
-			// Create a new vertex
 			const int32 NewVertIndex = VertexIndex++;
-			const FVector NewVertex = FVector(X * SectionSize.X, Y * SectionSize.Y, InHeightValues[NewVertIndex]);
-			InVertices[NewVertIndex] = NewVertex;
+			Positions[NewVertIndex] = FVector(X * SectionSize.X, Y * SectionSize.Y, InHeightValues[NewVertIndex]);
 
 			// Note that Unreal UV origin (0,0) is top left
 			const float U = static_cast<float>(X) / LengthSectionsAsFloat;
 			const float V = static_cast<float>(Y) / WidthSectionsAsFloat;
-			InTexCoords[NewVertIndex] = FVector2D(U, V);
+			TexCoords[NewVertIndex] = FVector2D(U, V);
 
 			// Once we've created enough verts we can start adding polygons
 			if (X > 0 && Y > 0)
 			{
-				// Each row is InWidthSections+1 number of points.
-				// And we have InLength+1 rows
-				// Index of current vertex in position is thus: (X * (InWidthSections + 1)) + Y;
-				const int32 TopRightIndex = (X * (InWidthSections + 1)) + Y; // Should be same as VertIndex1!
+				const int32 TopRightIndex = (X * (InWidthSections + 1)) + Y;
 				const int32 TopLeftIndex = TopRightIndex - 1;
 				const int32 BottomRightIndex = ((X - 1) * (InWidthSections + 1)) + Y;
 				const int32 BottomLeftIndex = BottomRightIndex - 1;
 
-				// Now create two triangles from those four vertices
-				// The order of these (clockwise/counter-clockwise) dictates which way the normal will face. 
-				InTriangles[TriangleIndex++] = BottomLeftIndex;
-				InTriangles[TriangleIndex++] = TopRightIndex;
-				InTriangles[TriangleIndex++] = TopLeftIndex;
+				// The order of these (clockwise/counter-clockwise) dictates which way the normal will face.
+				Triangles[TriangleIndex++] = BottomLeftIndex;
+				Triangles[TriangleIndex++] = TopRightIndex;
+				Triangles[TriangleIndex++] = TopLeftIndex;
 
-				InTriangles[TriangleIndex++] = BottomLeftIndex;
-				InTriangles[TriangleIndex++] = BottomRightIndex;
-				InTriangles[TriangleIndex++] = TopRightIndex;
+				Triangles[TriangleIndex++] = BottomLeftIndex;
+				Triangles[TriangleIndex++] = BottomRightIndex;
+				Triangles[TriangleIndex++] = TopRightIndex;
 
 				// Normals
-				const FVector NormalCurrent = FVector::CrossProduct(InVertices[BottomLeftIndex] - InVertices[TopLeftIndex], InVertices[TopLeftIndex] - InVertices[TopRightIndex]).GetSafeNormal();
-				InNormals[BottomLeftIndex] = InNormals[BottomRightIndex] = InNormals[TopRightIndex] = InNormals[TopLeftIndex] = NormalCurrent;
+				const FVector NormalCurrent = FVector::CrossProduct(Positions[BottomLeftIndex] - Positions[TopLeftIndex], Positions[TopLeftIndex] - Positions[TopRightIndex]).GetSafeNormal();
+				Normals[BottomLeftIndex] = Normals[BottomRightIndex] = Normals[TopRightIndex] = Normals[TopLeftIndex] = NormalCurrent;
+			}
+		}
+	}
+}
+
+void AHeightFieldAnimatedActor::UpdatePositionsAndNormals(const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
+{
+	const FVector2D SectionSize = FVector2D(InSize.X / InLengthSections, InSize.Y / InWidthSections);
+	int32 VertexIndex = 0;
+
+	for (int32 X = 0; X < InLengthSections + 1; X++)
+	{
+		for (int32 Y = 0; Y < InWidthSections + 1; Y++)
+		{
+			const int32 NewVertIndex = VertexIndex++;
+			Positions[NewVertIndex] = FVector(X * SectionSize.X, Y * SectionSize.Y, InHeightValues[NewVertIndex]);
+
+			if (X > 0 && Y > 0)
+			{
+				const int32 TopRightIndex = (X * (InWidthSections + 1)) + Y;
+				const int32 TopLeftIndex = TopRightIndex - 1;
+				const int32 BottomRightIndex = ((X - 1) * (InWidthSections + 1)) + Y;
+				const int32 BottomLeftIndex = BottomRightIndex - 1;
+
+				const FVector NormalCurrent = FVector::CrossProduct(Positions[BottomLeftIndex] - Positions[TopLeftIndex], Positions[TopLeftIndex] - Positions[TopRightIndex]).GetSafeNormal();
+				Normals[BottomLeftIndex] = Normals[BottomRightIndex] = Normals[TopRightIndex] = Normals[TopLeftIndex] = NormalCurrent;
 			}
 		}
 	}
