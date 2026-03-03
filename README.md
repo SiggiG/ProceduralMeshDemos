@@ -122,18 +122,16 @@ Grid mesh with an animated Z axis using combined sine and cosine waves. The only
 
 ![procexample_heightfieldnoise_animated](https://cloud.githubusercontent.com/assets/7083424/15450974/b79a3080-1fa5-11e6-9239-215ba777558a.gif)
 
-## Future work 
+##### Grid with animated heightmap (Direct Proxy)
+An alternative animated heightfield that bypasses `ProceduralMeshComponent` entirely. Uses a custom `UDirectProxyMeshComponent` with its own `FPrimitiveSceneProxy` to update GPU vertex buffers directly, eliminating the extra buffer copies that PMC requires. Same sine/cosine wave animation as above, but with a single-copy path from game thread to GPU.
+
+## Future work
 
 ##### More examples!
 I want to provide more examples in the future, and would love if members of the community could provide some! Of course you will get full credit for your contributions.
 
 - [ ] Proper L-systems
 - [ ] Animated lightning
-- [ ] Geometry shaders?
-
-##### Usage of PrimitiveSceneProxy/RHI directly instead of PMC
-Using the ProceduralMeshComponent has some limitations.  For animated examples where updates are sent to the GPU on every frame, it would be far more efficient to write a custom UPrimitiveComponent, PrimitiveSceneProxy and RHI rendering implementation.
-
 
 ## Contact info
 
