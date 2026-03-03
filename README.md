@@ -132,8 +132,6 @@ I want to provide more examples in the future, and would love if members of the 
 
 - [ ] Proper L-systems
 - [ ] Animated lightning
-- [ ] Geometry shaders?
-
 
 ## Contact info
 
