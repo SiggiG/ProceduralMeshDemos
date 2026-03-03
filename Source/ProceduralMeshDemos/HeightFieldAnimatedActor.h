@@ -59,7 +59,8 @@ protected:
 private:
 	void GenerateMesh();
 	void GeneratePoints();
-	static void GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
+	void GenerateGrid(const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
+	void UpdatePositionsAndNormals(const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues);
 
 	TArray<float> HeightValues;
 	float MaxHeightValue = 0.0f;
