@@ -58,54 +58,67 @@ Normally (pun intended) this can be calculated easily from the vectors in the po
 A tangent is a vector that is perpendicular (forms a 90 degree angle) with the normal and is parallell to the polygon surface.
 
 ## Geometry examples
-At first this project was using Epic's ProceduralMeshComponent but I later converted it to using Koderz's excellent RuntimeMeshComponent.  See: https://github.com/Koderz/UE4RuntimeMeshComponent
 
 ##### Simple Cube
-We start off with a very simple example of drawing a cube where you can set the Depth, Width and Height dimensions.
+We start off with a very simple example of drawing a cube where you can set the Depth, Width and Height dimensions. Good starting template for understanding the quad-building pattern.
 
 ![procexample_simplecube](https://cloud.githubusercontent.com/assets/7083424/15449199/c824a606-1f6e-11e6-948c-cc7f6953c336.jpg)
 
 ##### Simple Cylinder
 Shows how to draw a cylinder with configurable radius, height and how many polygons to use on the sides.
 
-Shows how to use normals to smooth out a surface, draw polygons on both sides and how to close the ends of the cylinder.
+Demonstrates smooth normals (averaging adjacent polygon normals for GPU interpolation), double-sided rendering, and end cap closure with triangle fans.
 
 ![procexample_simplecylinder](https://cloud.githubusercontent.com/assets/7083424/15449200/caca9b2c-1f6e-11e6-942c-b3965d009a40.jpg)
 
-##### Cylinder Strip
-In this example we show how you can define multiple points in space and then draw a cylinder section between each point to form a line.
+##### Simple Sphere
+Three different sphere generation algorithms in one actor, selectable via a dropdown:
+- **UV Sphere** — Classic parametric sphere with latitude/longitude rings
+- **Geodesic (Icosphere)** — Subdivided icosahedron with edge midpoint caching and UV seam correction
+- **Normalized Cube** — Cube faces subdivided and projected onto a sphere surface
 
-Note that this example does not join the meshes where the lines meet at the corners. I'm planning on providing an example for that later on, both in the form of a quick method (rotated cross sections that skew the cylinder) and a more expensive method that looks correct (projecting a circle on a plane defined by the angle where the lines meet).
+##### Cylinder Strip
+Define multiple points in space and draw a cylinder section between each point to form a line. Each segment is independent, so there are visible gaps at the corners.
 
 ![procexample_cylinderstrip](https://cloud.githubusercontent.com/assets/7083424/15449201/cd4fd614-1f6e-11e6-8ce7-e684180eeef5.jpg)
 
-##### Sierpinsky Line pyramid
+##### Smooth Cylinder Strip
+A continuous tube along a polyline that solves the gap problem from the basic Cylinder Strip. At each corner joint, the cross-section orientation is interpolated using quaternion slerp, producing smooth spherical joints that cleanly connect angled segments. The number of interpolation steps per joint is configurable.
+
+##### Sierpinski Line Pyramid
 I have always been fascinated by fractals, and they are one of the reasons I wanted to learn how to make custom geometry in Unreal.
 
 All fractals are drawn by a few very simple rules, but can create incredibly complicated results.
 
-One of the first examples of a fractal I learned to draw is the Sierpinski pyramid, which looks like a triangle made out of other triangles!
-
-For this example I went one step further and created a 3d pyramid version of the Sierpinski triangle, drawing it with cylindrical lines in 3d space.
-
-Later on I want to provide an example pyramid drawn with a polygonal surface instead of lines.
+The Sierpinski pyramid is a 3D version of the Sierpinski triangle, drawn with cylindrical lines in 3D space. Line thickness reduces each generation.
 
 ![procexample_sierpinskilines](https://cloud.githubusercontent.com/assets/7083424/15449202/d11273ba-1f6e-11e6-9a30-e0ffada32d5f.jpg)
 
-##### Branching Lines
-Another simple algorhitm that can create complex shapes seen in nature, including trees and lightning.
+##### Sierpinski Tetrahedron
+The solid-face counterpart to the Sierpinski Line Pyramid. Instead of wireframe lines, this renders the fractal with filled triangular faces. Each tetrahedron recursively subdivides into 4 sub-tetrahedrons at edge midpoints, with continuous UV mapping across subdivisions.
 
-You start by defining two points in space and draw a line between them. Then add a point in the center of that line, and shift it out in a random direction.  Then repeat this step for the two new sections created and repeat!
+##### Menger Sponge
+A recursive fractal cube. Uses a two-pass approach: first counts exposed faces for buffer pre-allocation, then emits only outward-facing quads where neighbors are empty. The `IsSolid()` function tests each cell using base-3 digit analysis at each subdivision level. Iterations clamped to 4 (grid size 81³).
+
+##### Branching Lines
+Another simple algorithm that can create complex shapes seen in nature, including trees and lightning.
+
+You start by defining two points in space and draw a line between them. Then add a point in the center of that line, and shift it out in a random direction. Then repeat this step for the two new sections created and repeat!
+
+Supports optional smooth joints (quaternion slerp tube interpolation), sphere joints at fork points, and end caps (flat or tapered).
 
 ![procexample_branchinglines](https://cloud.githubusercontent.com/assets/7083424/15449203/d3e4a554-1f6e-11e6-99b0-3d54ea8b93ce.jpg)
 
+##### Branching Mesh (Space Colonization)
+The most complex example. Uses the Space Colonization algorithm to grow tree-like structures from attractor points placed in a configurable crown volume (sphere, hemisphere, cone, or cylinder). Branch paths are smoothed with centripetal Catmull-Rom splines and swept with tube cross-sections. Fork transitions blend parent and child branches smoothly. Width follows the pipe model (leaf tips accumulate upward). Supports collision generation.
+
 ##### Grid with a noise heightmap
-Simple grid mesh with noise on the Z axis.
+Simple grid mesh with random noise on the Z axis using `FRandomStream` with a configurable seed for reproducible results.
 
 ![procexample_heightfieldnoise](https://cloud.githubusercontent.com/assets/7083424/15451477/06ce87ee-1fbc-11e6-8895-70810ecc2afb.jpg)
 
 ##### Grid with animated heightmap
-Grid mesh with an animated Z axis using sine and cosine.
+Grid mesh with an animated Z axis using combined sine and cosine waves. The only example that uses `Tick()` for per-frame animation, with an `UpdateMeshSection` fast path that avoids recreating the scene proxy every frame.
 
 ![procexample_heightfieldnoise_animated](https://cloud.githubusercontent.com/assets/7083424/15450974/b79a3080-1fa5-11e6-9239-215ba777558a.gif)
 
@@ -119,7 +132,7 @@ I want to provide more examples in the future, and would love if members of the 
 - [ ] Geometry shaders?
 
 ##### Usage of PrimitiveSceneProxy/RHI directly instead of PMC
-Using the ProceduralMeshComponent has some limitations as mention above.  I also want to provide animated examples in the future where updates are sent to the GPU on every frame, and I think its going to be far more efficient to do that by writing my own UPrimitiveComponent, PrimitiveSceneProxy and RHI rendering implementations.
+Using the ProceduralMeshComponent has some limitations.  For animated examples where updates are sent to the GPU on every frame, it would be far more efficient to write a custom UPrimitiveComponent, PrimitiveSceneProxy and RHI rendering implementation.
 
 
 ## Contact info
