@@ -27,6 +27,22 @@ I finally updated the project for Unreal 5 and simplified the project structure
 - Simplified folder structure, merged Plugin into the main project source.
 - Deleted shadow map, turned on Lumen etc
 
+## Unreal Engine 5.8 update notes
+
+Probably the last update for the Unreal 5 series, so this round was mostly about fixing bugs and tidying up.
+- Upgraded to Unreal 5.8 and Shader Model 6 (DX12). 5.8 generates a `.slnx` solution file, and the required Visual Studio components are listed in `.vsconfig`.
+- Editor fixes: meshes rebuild properly on undo/redo and when parameters change during PIE, and aren't generated twice when placing actors.
+- Count parameters (iterations, segments, grid sections etc.) now have upper limits, and are also clamped in code since Blueprints can write values the details panel would reject. Very large values used to hang the editor, and some small ones crashed it.
+- Fixed the branch end cap at the root of the trunk being inside-out.
+- Branching Lines smooth joints now bend around a rounded arc instead of turning the tube in place, which folded the inside of each bend inside-out. Branching Mesh got similar fixes to its branch tubes and fork transitions.
+- The noise heightfield gives each triangle its own normal, and the Simple Cylinder bottom cap normals now face down.
+
+### Known limitations
+- Tangents in several examples (cube, Menger sponge, noise grid, Sierpinski tetrahedron and the smooth tubes) don't follow the UV direction. It doesn't show with the UV checker material used here, but normal maps will look rotated or flipped. If you build on these with normal-mapped materials, calculate tangents from the UVs instead, for example with `UKismetProceduralMeshLibrary::CalculateTangentsForMesh`.
+- Copying or duplicating actors in the editor puts the full mesh data on the clipboard as text, which can be hundreds of MB for the bigger examples. The pasted actors still regenerate their meshes from their parameters.
+- A pasted or duplicated Direct Proxy heightfield with non-default parameters keeps showing the default mesh until you change one of its parameters.
+- Small seams can show where child branches meet the joint spheres in Branching Lines, and a few folds remain at very sharp forks in Branching Mesh.
+
 ## Explanation of a few Unreal concepts.
 
 ### Vertices, triangles, UV coordinates, normals and tangents.. oh my!
@@ -105,7 +121,7 @@ Another simple algorithm that can create complex shapes seen in nature, includin
 
 You start by defining two points in space and draw a line between them. Then add a point in the center of that line, and shift it out in a random direction. Then repeat this step for the two new sections created and repeat!
 
-Supports optional smooth joints (quaternion slerp tube interpolation), sphere joints at fork points, and end caps (flat or tapered).
+Supports optional smooth joints (the tube bends around a rounded arc at each joint), sphere joints at fork points, and end caps (flat or tapered).
 
 ![procexample_branchinglines](https://cloud.githubusercontent.com/assets/7083424/15449203/d3e4a554-1f6e-11e6-99b0-3d54ea8b93ce.jpg)
 
@@ -113,7 +129,7 @@ Supports optional smooth joints (quaternion slerp tube interpolation), sphere jo
 The most complex example. Uses the Space Colonization algorithm to grow tree-like structures from attractor points placed in a configurable crown volume (sphere, hemisphere, cone, or cylinder). Branch paths are smoothed with centripetal Catmull-Rom splines and swept with tube cross-sections. Fork transitions blend parent and child branches smoothly. Width follows the pipe model (leaf tips accumulate upward). Supports collision generation.
 
 ##### Grid with a noise heightmap
-Simple grid mesh with random noise on the Z axis using `FRandomStream` with a configurable seed for reproducible results.
+Simple grid mesh with random noise on the Z axis using `FRandomStream` with a configurable seed for reproducible results. Each triangle gets its own vertices and flat normal, since the random heights make each grid quad's corners non-coplanar.
 
 ![procexample_heightfieldnoise](https://cloud.githubusercontent.com/assets/7083424/15451477/06ce87ee-1fbc-11e6-8895-70810ecc2afb.jpg)
 

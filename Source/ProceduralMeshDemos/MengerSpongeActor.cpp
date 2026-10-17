@@ -270,10 +270,8 @@ void AMengerSpongeActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void AMengerSpongeActor::BuildQuad(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector BottomLeft, const FVector BottomRight, const FVector TopRight, const FVector TopLeft, int32& VertexOffset, int32& TriangleOffset, const FVector Normal, const FProcMeshTangent Tangent)

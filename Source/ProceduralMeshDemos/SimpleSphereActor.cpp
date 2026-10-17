@@ -62,8 +62,9 @@ void ASimpleSphereActor::SetupMeshBuffers()
 	{
 	case ESphereType::UVSphere:
 	{
-		const int32 Rings = ClampedSegments;
-		const int32 Slices = ClampedSegments * 2;
+		// A UV sphere needs at least the two pole rings
+		const int32 Rings = FMath::Max(ClampedSegments, 2);
+		const int32 Slices = Rings * 2;
 		// Top and bottom pole fans: Slices triangles each (3 verts per triangle)
 		// Middle rings: (Rings - 2) rings * Slices quads * 2 triangles * 3 verts
 		VertexCount = Slices * 3 * 2 + FMath::Max(0, Rings - 2) * Slices * 4;
@@ -116,9 +117,12 @@ void ASimpleSphereActor::GenerateMesh()
 		return;
 	}
 
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	Segments = FMath::Clamp(Segments, 1, 256);
+
 	MeshComponent->ClearAllMeshSections();
 
-	if (Radius <= 0 || Segments < 1)
+	if (Radius <= 0)
 	{
 		return;
 	}
@@ -139,15 +143,13 @@ void ASimpleSphereActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void ASimpleSphereActor::GenerateUVSphere()
 {
-	const int32 Rings = FMath::Max(Segments, 1);
+	const int32 Rings = FMath::Max(Segments, 2);
 	const int32 Slices = Rings * 2;
 	int32 VertexIndex = 0;
 	int32 TriangleIndex = 0;

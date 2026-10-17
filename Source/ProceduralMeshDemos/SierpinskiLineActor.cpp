@@ -17,8 +17,6 @@ void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
 
 	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
 	{
-		PreCacheCrossSection();
-		GenerateLines();
 		GenerateMesh();
 		bRequiresMeshRebuild = false;
 	}
@@ -49,8 +47,6 @@ void ASierpinskiLineActor::PostLoad()
 		return;
 	}
 
-	PreCacheCrossSection();
-	GenerateLines();
 	GenerateMesh();
 	bRequiresMeshRebuild = false;
 }
@@ -88,6 +84,12 @@ void ASierpinskiLineActor::GenerateMesh()
 		return;
 	}
 
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	Iterations = FMath::Clamp(Iterations, 0, 8);
+	RadialSegmentCount = FMath::Clamp(RadialSegmentCount, 3, 64);
+	PreCacheCrossSection();
+	GenerateLines();
+
 	MeshComponent->ClearAllMeshSections();
 	SetupMeshBuffers();
 
@@ -102,10 +104,8 @@ void ASierpinskiLineActor::GenerateMesh()
 	}
 	
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 FVector ASierpinskiLineActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)

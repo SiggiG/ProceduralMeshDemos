@@ -98,6 +98,9 @@ void ASimpleCylinderActor::GenerateMesh()
 		return;
 	}
 
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	RadialSegmentCount = FMath::Clamp(RadialSegmentCount, 3, 256);
+
 	MeshComponent->ClearAllMeshSections();
 
 	if (Height <= 0)
@@ -109,10 +112,8 @@ void ASimpleCylinderActor::GenerateMesh()
 	GenerateCylinder(Positions, Triangles, Normals, Tangents, TexCoords, Height, Radius, RadialSegmentCount, bCapEnds, bDoubleSided, bSmoothNormals);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const float InHeight, const float InWidth, const int32 InCrossSectionCount, const bool bInCapEnds, const bool bInDoubleSided, const bool bInSmoothNormals/* = true*/)
@@ -234,8 +235,8 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InTexCoords[VertIndex3] = FVector2D(1.0f - (VMapPerQuad * (QuadIndex + 1)), 0.0f);
 			InTexCoords[VertIndex4] = FVector2D(1.0f - (VMapPerQuad * QuadIndex), 0.0f);
 
-			// Just simple (unsmoothed) normal for these
-			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = InNormals[VertIndex4] = NormalCurrent;
+			// Just simple (unsmoothed) normal for these, facing inward like the reversed polygons
+			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = InNormals[VertIndex4] = -NormalCurrent;
 
 			// Tangents (perpendicular to the surface)
 			const FVector SurfaceTangentDblVec = (P0 - P1).GetSafeNormal();
@@ -268,7 +269,8 @@ void ASimpleCylinderActor::GenerateCylinder(TArray<FVector>& InVertices, TArray<
 			InTexCoords[VertIndex2] = FVector2D(0.5f - (FMath::Cos(-Angle) / 2.0f), 0.5f - (FMath::Sin(-Angle) / 2.0f));
 			InTexCoords[VertIndex3] = FVector2D(0.5f - (FMath::Cos(-NextAngle) / 2.0f), 0.5f - (FMath::Sin(-NextAngle) / 2.0f));
 
-			FVector CapNormalCurrent = FVector::CrossProduct(InVertices[VertIndex1] - InVertices[VertIndex3], InVertices[VertIndex2] - InVertices[VertIndex3]).GetSafeNormal();
+			// The bottom cap's polygons are wound opposite to the top cap's, so its normal is negated to face down
+			FVector CapNormalCurrent = -FVector::CrossProduct(InVertices[VertIndex1] - InVertices[VertIndex3], InVertices[VertIndex2] - InVertices[VertIndex3]).GetSafeNormal();
 			InNormals[VertIndex1] = InNormals[VertIndex2] = InNormals[VertIndex3] = CapNormalCurrent;
 
 			// Tangents (perpendicular to the surface)

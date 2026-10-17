@@ -17,7 +17,6 @@ void ABranchingMeshActor::OnConstruction(const FTransform& Transform)
 
 	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
 	{
-		PreCacheCrossSection();
 		GenerateMesh();
 		bRequiresMeshRebuild = false;
 	}
@@ -48,7 +47,6 @@ void ABranchingMeshActor::PostLoad()
 		return;
 	}
 
-	PreCacheCrossSection();
 	GenerateMesh();
 	bRequiresMeshRebuild = false;
 }
@@ -568,8 +566,6 @@ void ABranchingMeshActor::EvaluateSplines(TArray<FBranchPath>& Paths, const TArr
 void ABranchingMeshActor::TrimPathsAtForks(TArray<FBranchPath>& Paths, const TArray<FBranchNode>& Nodes,
 	TMap<int32, FForkTrimInfo>& OutParentTrims, TMap<int32, FForkTrimInfo>& OutChildTrims)
 {
-	const float HalfTransition = FMath::Max(ForkTransitionLength, 0.1f) * 0.5f;
-
 	OutParentTrims.Empty();
 	OutChildTrims.Empty();
 
@@ -583,19 +579,25 @@ void ABranchingMeshActor::TrimPathsAtForks(TArray<FBranchPath>& Paths, const TAr
 		const int32 LastNodeIdx = Path.NodeIndices.Last();
 		const int32 FirstNodeIdx = Path.NodeIndices[0];
 		const bool bTrimEnd = Nodes[LastNodeIdx].bIsFork;
-		const bool bTrimStart = Nodes[FirstNodeIdx].bIsFork;
+		const bool bTrimStart = Nodes[FirstNodeIdx].bIsFork && !IsReversedFork(Nodes, FirstNodeIdx, Path.NodeIndices[1]);
 
-		// Don't trim if path is too short to remain valid after trimming
-		const float NeededLength = ((bTrimStart ? 1.f : 0.f) + (bTrimEnd ? 1.f : 0.f)) * HalfTransition * 2.f;
-		if (Path.TotalLength <= NeededLength)
+		float HalfTransitionStart = bTrimStart ? TransitionLengthAt(Nodes[FirstNodeIdx]) * 0.5f : 0.f;
+		float HalfTransitionEnd = bTrimEnd ? TransitionLengthAt(Nodes[LastNodeIdx]) * 0.5f : 0.f;
+
+		// A short path can't make room for the full transitions. Leaving it untrimmed would leave its transitions
+		// overlapping the tube and its ends open, so shorten both trims to leave half the path standing.
+		const float TotalTrim = HalfTransitionStart + HalfTransitionEnd;
+		if (TotalTrim > Path.TotalLength * 0.5f)
 		{
-			continue;
+			const float Scale = Path.TotalLength * 0.5f / TotalTrim;
+			HalfTransitionStart *= Scale;
+			HalfTransitionEnd *= Scale;
 		}
 
 		// --- Trim end (path ends at a fork) ---
 		if (bTrimEnd)
 		{
-			const float TrimDist = Path.TotalLength - HalfTransition;
+			const float TrimDist = Path.TotalLength - HalfTransitionEnd;
 
 			// Find last point to keep (the one at or before TrimDist)
 			int32 KeepIdx = Path.SplinePoints.Num() - 1;
@@ -614,13 +616,16 @@ void ABranchingMeshActor::TrimPathsAtForks(TArray<FBranchPath>& Paths, const TAr
 				const FVector NewPt = FMath::Lerp(Path.SplinePoints[KeepIdx], Path.SplinePoints[KeepIdx + 1], T);
 				const float NewWidth = FMath::Lerp(Path.SplineWidths[KeepIdx], Path.SplineWidths[KeepIdx + 1], T);
 
-				Path.SplinePoints.SetNum(KeepIdx + 2);
-				Path.SplineWidths.SetNum(KeepIdx + 2);
-				Path.SplineDistances.SetNum(KeepIdx + 2);
+				// A new endpoint just past a spline point would put two rings almost on top of each other at different
+				// angles, folding the tube between them, so move the nearer point there instead of adding one
+				const int32 EndIdx = (T < 0.5f && KeepIdx > 0) ? KeepIdx : KeepIdx + 1;
+				Path.SplinePoints.SetNum(EndIdx + 1);
+				Path.SplineWidths.SetNum(EndIdx + 1);
+				Path.SplineDistances.SetNum(EndIdx + 1);
 
-				Path.SplinePoints[KeepIdx + 1] = NewPt;
-				Path.SplineWidths[KeepIdx + 1] = NewWidth;
-				Path.SplineDistances[KeepIdx + 1] = TrimDist;
+				Path.SplinePoints[EndIdx] = NewPt;
+				Path.SplineWidths[EndIdx] = NewWidth;
+				Path.SplineDistances[EndIdx] = TrimDist;
 				Path.TotalLength = TrimDist;
 			}
 
@@ -639,28 +644,29 @@ void ABranchingMeshActor::TrimPathsAtForks(TArray<FBranchPath>& Paths, const TAr
 		// --- Trim start (path starts at a fork) ---
 		if (bTrimStart)
 		{
-			// Find first point at or past HalfTransition
+			// Find first point at or past HalfTransitionStart
 			int32 FirstKeep = 0;
-			while (FirstKeep < Path.SplinePoints.Num() - 1 && Path.SplineDistances[FirstKeep] < HalfTransition)
+			while (FirstKeep < Path.SplinePoints.Num() - 1 && Path.SplineDistances[FirstKeep] < HalfTransitionStart)
 			{
 				FirstKeep++;
 			}
 
 			if (FirstKeep > 0)
 			{
-				// Interpolate a new start point at exactly HalfTransition
+				// Interpolate a new start point at exactly HalfTransitionStart
 				const float D0 = Path.SplineDistances[FirstKeep - 1];
 				const float D1 = Path.SplineDistances[FirstKeep];
-				const float T = (D1 > D0) ? (HalfTransition - D0) / (D1 - D0) : 0.f;
+				const float T = (D1 > D0) ? (HalfTransitionStart - D0) / (D1 - D0) : 0.f;
 
 				const FVector NewPt = FMath::Lerp(Path.SplinePoints[FirstKeep - 1], Path.SplinePoints[FirstKeep], T);
 				const float NewWidth = FMath::Lerp(Path.SplineWidths[FirstKeep - 1], Path.SplineWidths[FirstKeep], T);
 
-				// Replace the point just before FirstKeep with the interpolated point
-				const int32 InsertIdx = FirstKeep - 1;
+				// Replace the point just before FirstKeep with the interpolated point, or FirstKeep itself when that is
+				// nearer, for the same reason as at the end
+				const int32 InsertIdx = (T > 0.5f && FirstKeep < Path.SplinePoints.Num() - 1) ? FirstKeep : FirstKeep - 1;
 				Path.SplinePoints[InsertIdx] = NewPt;
 				Path.SplineWidths[InsertIdx] = NewWidth;
-				Path.SplineDistances[InsertIdx] = HalfTransition;
+				Path.SplineDistances[InsertIdx] = HalfTransitionStart;
 
 				// Remove everything before InsertIdx
 				if (InsertIdx > 0)
@@ -685,17 +691,67 @@ void ABranchingMeshActor::TrimPathsAtForks(TArray<FBranchPath>& Paths, const TAr
 	}
 }
 
+// Length of the transition tube at a fork. Thick branches get a longer one, since bending a tube around a tighter
+// radius than its own folds the inside of the bend inside-out.
+float ABranchingMeshActor::TransitionLengthAt(const FBranchNode& ForkNode) const
+{
+	return FMath::Max(FMath::Max(ForkTransitionLength, 0.1f), ForkNode.Width * 3.f);
+}
+
+// A child turning back on its parent by more than 150 degrees gets no transition tube, which would have to fold back
+// on itself; its tube isn't trimmed and starts at the fork instead
+bool ABranchingMeshActor::IsReversedFork(const TArray<FBranchNode>& Nodes, const int32 ForkIdx, const int32 ChildIdx)
+{
+	const FBranchNode& Fork = Nodes[ForkIdx];
+	const FVector ParentDir = Fork.ParentIndex != INDEX_NONE
+		? (Fork.Position - Nodes[Fork.ParentIndex].Position).GetSafeNormal()
+		: FVector::UpVector;
+	const FVector ChildDir = (Nodes[ChildIdx].Position - Fork.Position).GetSafeNormal();
+	return FVector::DotProduct(ParentDir, ChildDir) < -0.866f;
+}
+
+// --- Ring orientations along each spline path ---
+
+void ABranchingMeshActor::ComputeRingOrientations(TArray<FBranchPath>& Paths)
+{
+	// Each ring's orientation is carried over from the previous ring by the smallest rotation between their
+	// directions (parallel transport). Building every ring from a fixed up vector instead spins the cross-section
+	// around the tube where a branch points nearly straight down, twisting the quads between rings inside-out.
+	for (FBranchPath& Path : Paths)
+	{
+		Path.RingOrientations.Reset();
+		const int32 NumPts = Path.SplinePoints.Num();
+		if (NumPts < 2)
+		{
+			continue;
+		}
+
+		FVector PrevDir = FVector::UpVector;
+		for (int32 RingIdx = 0; RingIdx < NumPts; ++RingIdx)
+		{
+			// Ring direction: one-sided at the ends, central difference in between
+			const int32 Prev = FMath::Max(RingIdx - 1, 0);
+			const int32 Next = FMath::Min(RingIdx + 1, NumPts - 1);
+			FVector Dir = (Path.SplinePoints[Next] - Path.SplinePoints[Prev]).GetSafeNormal();
+			if (Dir.IsNearlyZero())
+			{
+				Dir = PrevDir;
+			}
+
+			Path.RingOrientations.Add(RingIdx == 0
+				? FQuat::FindBetweenNormals(FVector::UpVector, Dir)
+				: (FQuat::FindBetweenNormals(PrevDir, Dir) * Path.RingOrientations.Last()).GetNormalized());
+			PrevDir = Dir;
+		}
+	}
+}
+
 // --- Generate tube mesh by sweeping rings along spline paths ---
 
 void ABranchingMeshActor::GenerateTubeMesh(const TArray<FBranchPath>& Paths, int32& VertIdx, int32& TriIdx)
 {
 	const int32 VertsPerRing = RadialSegmentCount + 1;
 	const float UStep = 1.f / static_cast<float>(RadialSegmentCount);
-
-	auto MakeQuat = [](const FVector& Dir) -> FQuat
-	{
-		return FQuat::FindBetweenNormals(FVector::UpVector, Dir);
-	};
 
 	for (const FBranchPath& Path : Paths)
 	{
@@ -709,27 +765,8 @@ void ABranchingMeshActor::GenerateTubeMesh(const TArray<FBranchPath>& Paths, int
 
 		for (int32 RingIdx = 0; RingIdx < NumPts; ++RingIdx)
 		{
-			// Compute ring direction
-			FVector Dir;
-			if (RingIdx == 0)
-			{
-				Dir = (Path.SplinePoints[1] - Path.SplinePoints[0]).GetSafeNormal();
-			}
-			else if (RingIdx == NumPts - 1)
-			{
-				Dir = (Path.SplinePoints[NumPts - 1] - Path.SplinePoints[NumPts - 2]).GetSafeNormal();
-			}
-			else
-			{
-				Dir = (Path.SplinePoints[RingIdx + 1] - Path.SplinePoints[RingIdx - 1]).GetSafeNormal();
-			}
-
-			if (Dir.IsNearlyZero())
-			{
-				Dir = FVector::UpVector;
-			}
-
-			const FQuat Orientation = MakeQuat(Dir);
+			const FQuat& Orientation = Path.RingOrientations[RingIdx];
+			const FVector Dir = Orientation.RotateVector(FVector::UpVector);
 			const float Width = Path.SplineWidths[RingIdx];
 			const float VCoord = Path.SplineDistances[RingIdx]; // World-space V for consistent texture scale
 
@@ -780,13 +817,23 @@ void ABranchingMeshActor::GenerateForkTransitions(const TArray<FBranchNode>& Nod
 	const int32 VertsPerRing = RadialSegmentCount + 1;
 	const float UStep = 1.f / static_cast<float>(RadialSegmentCount);
 	const int32 NumTransitionRings = FMath::Clamp(ForkTransitionRings, 2, 16);
-	const float TransitionLen = FMath::Max(ForkTransitionLength, 0.1f);
-	const float HalfTransition = TransitionLen * 0.5f;
 
 	auto MakeQuat = [](const FVector& Dir) -> FQuat
 	{
 		return FQuat::FindBetweenNormals(FVector::UpVector, Dir);
 	};
+
+	// Orientations of the tube rings that transitions connect to, so the seams line up vertex for vertex
+	TMap<int32, FQuat> ParentEndOrientations; // Fork node -> last ring of the path ending at it
+	TMap<int32, FQuat> ChildStartOrientations; // First node after a fork -> first ring of the path starting there
+	for (const FBranchPath& Path : Paths)
+	{
+		if (Path.RingOrientations.Num() > 0)
+		{
+			ParentEndOrientations.Add(Path.NodeIndices.Last(), Path.RingOrientations.Last());
+			ChildStartOrientations.Add(Path.NodeIndices[1], Path.RingOrientations[0]);
+		}
+	}
 
 	// Find fork nodes
 	for (int32 NodeIdx = 0; NodeIdx < Nodes.Num(); ++NodeIdx)
@@ -796,6 +843,9 @@ void ABranchingMeshActor::GenerateForkTransitions(const TArray<FBranchNode>& Nod
 		{
 			continue;
 		}
+
+		const float TransitionLen = TransitionLengthAt(ForkNode);
+		const float HalfTransition = TransitionLen * 0.5f;
 
 		// Determine fallback parent direction from the node graph
 		FVector FallbackParentDir = FVector::UpVector;
@@ -816,9 +866,7 @@ void ABranchingMeshActor::GenerateForkTransitions(const TArray<FBranchNode>& Nod
 			const FBranchNode& ChildNode = Nodes[ChildIdx];
 			const FVector FallbackChildDir = (ChildNode.Position - ForkNode.Position).GetSafeNormal();
 
-			// Check fork angle — skip transition for near-reversal angles (>150 degrees)
-			const float CosAngle = FVector::DotProduct(StartDir, FallbackChildDir);
-			if (CosAngle < -0.866f)
+			if (IsReversedFork(Nodes, NodeIdx, ChildIdx))
 			{
 				continue;
 			}
@@ -829,8 +877,11 @@ void ABranchingMeshActor::GenerateForkTransitions(const TArray<FBranchNode>& Nod
 			const float EndWidth = ChildTrim ? ChildTrim->Width : ChildNode.Width;
 			const FVector EndDir = ChildTrim ? ChildTrim->Direction : FallbackChildDir;
 
-			const FQuat StartQ = MakeQuat(StartDir);
-			const FQuat EndQ = MakeQuat(EndDir);
+			// Start and end exactly on the rings of the tubes being joined (only the trimmed ones end where we connect)
+			const FQuat* ParentQ = ParentTrim ? ParentEndOrientations.Find(NodeIdx) : nullptr;
+			const FQuat* ChildQ = ChildTrim ? ChildStartOrientations.Find(ChildIdx) : nullptr;
+			const FQuat StartQ = ParentQ ? *ParentQ : MakeQuat(StartDir);
+			const FQuat EndQ = ChildQ ? *ChildQ : MakeQuat(EndDir);
 
 			// Compute split offset: push transition center away from the fork axis
 			FVector SplitOffset = FVector::ZeroVector;
@@ -844,20 +895,58 @@ void ABranchingMeshActor::GenerateForkTransitions(const TArray<FBranchNode>& Nod
 				SplitOffset = (FallbackChildDir - StartDir).GetSafeNormal() * EndWidth * 0.3f;
 			}
 
+			// Ring centres follow a Hermite curve that leaves the parent along StartDir and enters the child along
+			// EndDir, and each ring faces along that curve. Turning the rings while their centres move in a straight
+			// line overlaps them on the inside of the bend and folds it inside-out.
+			// The split offset blends in with sin^2 so it doesn't change the curve's direction at either end.
+			const float TangentScale = FVector::Dist(StartPos, EndPos);
+			TArray<FVector> RingCenters;
+			TArray<FVector> RingDirs;
+			RingCenters.Reserve(NumTransitionRings + 1);
+			RingDirs.Reserve(NumTransitionRings + 1);
+			for (int32 RingIdx = 0; RingIdx <= NumTransitionRings; ++RingIdx)
+			{
+				const float T = static_cast<float>(RingIdx) / static_cast<float>(NumTransitionRings);
+				const float T2 = T * T;
+				const float T3 = T2 * T;
+
+				RingCenters.Add((2.f * T3 - 3.f * T2 + 1.f) * StartPos + (T3 - 2.f * T2 + T) * TangentScale * StartDir
+					+ (-2.f * T3 + 3.f * T2) * EndPos + (T3 - T2) * TangentScale * EndDir
+					+ SplitOffset * FMath::Square(FMath::Sin(T * PI)));
+
+				const FVector Velocity = (6.f * T2 - 6.f * T) * StartPos + (3.f * T2 - 4.f * T + 1.f) * TangentScale * StartDir
+					+ (-6.f * T2 + 6.f * T) * EndPos + (3.f * T2 - 2.f * T) * TangentScale * EndDir
+					+ SplitOffset * (PI * FMath::Sin(2.f * PI * T));
+				RingDirs.Add(RingIdx == 0 ? StartDir : RingIdx == NumTransitionRings ? EndDir : Velocity.GetSafeNormal(UE_SMALL_NUMBER, StartDir));
+			}
+
+			// Carry the parent's ring orientation along the curve (as in ComputeRingOrientations). That leaves the last
+			// ring rolled around EndDir relative to the child's first ring, so spread that roll along the transition.
+			TArray<FQuat> RingQs;
+			RingQs.Reserve(NumTransitionRings + 1);
+			RingQs.Add(StartQ);
+			for (int32 RingIdx = 1; RingIdx <= NumTransitionRings; ++RingIdx)
+			{
+				RingQs.Add((FQuat::FindBetweenNormals(RingDirs[RingIdx - 1], RingDirs[RingIdx]) * RingQs.Last()).GetNormalized());
+			}
+
+			FVector RollAxis;
+			FQuat::FReal RollAngle;
+			(EndQ * RingQs.Last().Inverse()).ToAxisAndAngle(RollAxis, RollAngle);
+			RollAngle = FMath::UnwindRadians(FVector::DotProduct(RollAxis, EndDir) < 0.f ? -RollAngle : RollAngle);
+
 			const int32 TubeBaseVert = VertIdx;
 
 			for (int32 RingIdx = 0; RingIdx <= NumTransitionRings; ++RingIdx)
 			{
 				const float T = static_cast<float>(RingIdx) / static_cast<float>(NumTransitionRings);
 
-				const float SplitBlend = FMath::Sin(T * PI);
-				const FVector RingCenter = FMath::Lerp(StartPos, EndPos, T)
-					+ SplitOffset * SplitBlend;
-
+				const FVector& RingCenter = RingCenters[RingIdx];
 				const float RingWidth = FMath::Lerp(StartWidth, EndWidth, T);
-
-				const FQuat RingQ = FQuat::Slerp(StartQ, EndQ, T);
-				const FVector RingDir = FMath::Lerp(StartDir, EndDir, T).GetSafeNormal();
+				const FVector& RingDir = RingDirs[RingIdx];
+				const FQuat RingQ = RingIdx == NumTransitionRings
+					? EndQ
+					: (FQuat(RingDir, RollAngle * T) * RingQs[RingIdx]).GetNormalized();
 
 				const float VCoord = T * TransitionLen;
 
@@ -944,12 +1033,14 @@ void ABranchingMeshActor::GenerateEndCap(const FVector& RingCenter, const FQuat&
 			(CachedCrossSectionPoints[j].Y + 1.f) * 0.5f);
 	}
 
-	// Triangle fan from tip to rim
+	// Triangle fan from tip to rim. The rim runs counter-clockwise around the ring axis, so a cap facing
+	// against the axis (the root end of a tube) needs the opposite winding to face outward.
+	const bool bFacesRingAxis = FVector::DotProduct(OutwardDir, RingOrientation.RotateVector(FVector::UpVector)) > 0.f;
 	for (int32 j = 0; j < RadialSegmentCount; ++j)
 	{
 		Triangles[InTriangleIndex++] = TipIdx;
-		Triangles[InTriangleIndex++] = RimBaseIdx + j + 1;
-		Triangles[InTriangleIndex++] = RimBaseIdx + j;
+		Triangles[InTriangleIndex++] = RimBaseIdx + (bFacesRingAxis ? j + 1 : j);
+		Triangles[InTriangleIndex++] = RimBaseIdx + (bFacesRingAxis ? j : j + 1);
 	}
 }
 
@@ -961,11 +1052,6 @@ void ABranchingMeshActor::GenerateEndCaps(const TArray<FBranchNode>& Nodes, cons
 	}
 
 	const float TerminalTaper = (EndCapType == EBranchEndCapType::Taper) ? TaperLength : 0.f;
-
-	auto MakeQuat = [](const FVector& Dir) -> FQuat
-	{
-		return FQuat::FindBetweenNormals(FVector::UpVector, Dir);
-	};
 
 	for (const FBranchPath& Path : Paths)
 	{
@@ -981,7 +1067,7 @@ void ABranchingMeshActor::GenerateEndCaps(const TArray<FBranchNode>& Nodes, cons
 		if (Nodes[FirstNodeIdx].bIsRoot)
 		{
 			const FVector Dir = (Path.SplinePoints[1] - Path.SplinePoints[0]).GetSafeNormal();
-			GenerateEndCap(Path.SplinePoints[0], MakeQuat(Dir), -Dir, Path.SplineWidths[0], TerminalTaper, VertIdx, TriIdx);
+			GenerateEndCap(Path.SplinePoints[0], Path.RingOrientations[0], -Dir, Path.SplineWidths[0], TerminalTaper, VertIdx, TriIdx);
 		}
 
 		// Cap at leaf (end of path if the ending node is a leaf)
@@ -989,7 +1075,7 @@ void ABranchingMeshActor::GenerateEndCaps(const TArray<FBranchNode>& Nodes, cons
 		{
 			const int32 NumPts = Path.SplinePoints.Num();
 			const FVector Dir = (Path.SplinePoints[NumPts - 1] - Path.SplinePoints[NumPts - 2]).GetSafeNormal();
-			GenerateEndCap(Path.SplinePoints.Last(), MakeQuat(Dir), Dir, Path.SplineWidths.Last(), TerminalTaper, VertIdx, TriIdx);
+			GenerateEndCap(Path.SplinePoints.Last(), Path.RingOrientations.Last(), Dir, Path.SplineWidths.Last(), TerminalTaper, VertIdx, TriIdx);
 		}
 	}
 }
@@ -1072,6 +1158,12 @@ void ABranchingMeshActor::GenerateMesh()
 		return;
 	}
 
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	RadialSegmentCount = FMath::Clamp(RadialSegmentCount, 3, 64);
+	AttractorCount = FMath::Clamp(AttractorCount, 1, 2000);
+	MaxGrowthIterations = FMath::Clamp(MaxGrowthIterations, 1, 500);
+	PreCacheCrossSection();
+
 	RngStream.Initialize(RandomSeed);
 
 	MeshComponent->ClearAllMeshSections();
@@ -1095,30 +1187,17 @@ void ABranchingMeshActor::GenerateMesh()
 	// Trim tube paths at fork nodes to make room for transitions
 	TMap<int32, FForkTrimInfo> ParentTrims, ChildTrims;
 	TrimPathsAtForks(BranchPaths, TreeNodes, ParentTrims, ChildTrims);
+	ComputeRingOrientations(BranchPaths);
 
-	// Count fork nodes for transition geometry
-	// Must match the skip logic in GenerateForkTransitions exactly (using ParentTrims direction)
+	// Count fork transitions (GenerateForkTransitions skips the same reversed forks)
 	int32 NumForkTransitions = 0;
 	for (int32 NodeIdx = 0; NodeIdx < TreeNodes.Num(); ++NodeIdx)
 	{
-		const FBranchNode& Node = TreeNodes[NodeIdx];
-		if (Node.bIsFork)
+		if (TreeNodes[NodeIdx].bIsFork)
 		{
-			FVector FallbackParentDir = FVector::UpVector;
-			if (Node.ParentIndex != INDEX_NONE)
+			for (int32 ChildIdx : TreeNodes[NodeIdx].ChildIndices)
 			{
-				FallbackParentDir = (Node.Position - TreeNodes[Node.ParentIndex].Position).GetSafeNormal();
-			}
-			const FForkTrimInfo* ParentTrim = ParentTrims.Find(NodeIdx);
-			const FVector StartDir = ParentTrim ? ParentTrim->Direction : FallbackParentDir;
-
-			for (int32 ChildIdx : Node.ChildIndices)
-			{
-				const FVector ChildDir = (TreeNodes[ChildIdx].Position - Node.Position).GetSafeNormal();
-				if (FVector::DotProduct(StartDir, ChildDir) >= -0.866f)
-				{
-					NumForkTransitions++;
-				}
+				NumForkTransitions += IsReversedFork(TreeNodes, NodeIdx, ChildIdx) ? 0 : 1;
 			}
 		}
 	}
@@ -1202,10 +1281,8 @@ void ABranchingMeshActor::GenerateMesh()
 	const bool bComplexAsSimple = CollisionType == EBranchCollisionType::ComplexAsSimple;
 	MeshComponent->bUseComplexAsSimpleCollision = bComplexAsSimple;
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, bComplexAsSimple);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 
 	// Collision
 	GenerateCollision(BranchPaths);

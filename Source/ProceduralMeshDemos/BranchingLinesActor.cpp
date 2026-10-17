@@ -21,7 +21,6 @@ void ABranchingLinesActor::OnConstruction(const FTransform& Transform)
 
 	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
 	{
-		PreCacheCrossSection();
 		GenerateMesh();
 		bRequiresMeshRebuild = false;
 	}
@@ -52,7 +51,6 @@ void ABranchingLinesActor::PostLoad()
 		return;
 	}
 
-	PreCacheCrossSection();
 	GenerateMesh();
 	bRequiresMeshRebuild = false;
 }
@@ -89,6 +87,12 @@ void ABranchingLinesActor::GenerateMesh()
 	{
 		return;
 	}
+
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	Iterations = FMath::Min<uint8>(Iterations, 10);
+	RadialSegmentCount = FMath::Clamp(RadialSegmentCount, 3, 64);
+	JointSegments = FMath::Clamp(JointSegments, 0, 32);
+	PreCacheCrossSection();
 
 	// -------------------------------------------------------
 	// Setup the random number generator and create the branching structure
@@ -263,10 +267,8 @@ void ABranchingLinesActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void ABranchingLinesActor::GenerateSmoothMesh()
@@ -422,21 +424,29 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 
 		const int32 NumSeg = Chain.Points.Num() - 1;
 
-		// Compute segment directions
+		// Compute segment directions and lengths
 		TArray<FVector> Dirs;
+		TArray<float> Lengths;
 		Dirs.Reserve(NumSeg);
+		Lengths.Reserve(NumSeg);
 		for (int32 s = 0; s < NumSeg; ++s)
 		{
 			const FVector Delta = Chain.Points[s + 1] - Chain.Points[s];
 			const float Len = Delta.Size();
 			Dirs.Add(Len > KINDA_SMALL_NUMBER ? Delta / Len : FVector::UpVector);
+			Lengths.Add(Len);
 		}
 
 		FTubeData Tube;
 		Tube.Width = Chain.Width;
 
+		// The ring orientation is carried along the chain, turned by each joint's bend, rather than rebuilt from
+		// each segment's direction: rebuilding spins the cross-section where the chain points nearly straight
+		// down, twisting the quads between rings.
+		FQuat Frame = MakeQuat(Dirs[0]);
+
 		// First endpoint ring
-		Tube.Rings.Add({Chain.Points[0], MakeQuat(Dirs[0]), 1.f});
+		Tube.Rings.Add({Chain.Points[0], Frame, 1.f});
 
 		// Interior joints
 		for (int32 p = 0; p < NumSeg - 1; ++p)
@@ -447,41 +457,48 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 
 			const float CosAlpha = FMath::Clamp(FVector::DotProduct(DirIn, DirOut), -1.f, 1.f);
 			const float Alpha = FMath::Acos(CosAlpha);
+			const FQuat Bend = FQuat::FindBetweenNormals(DirIn, DirOut);
 
 			if (Alpha < AngleThreshold)
 			{
 				// Nearly straight — two coincident rings to reset V
-				Tube.Rings.Add({JointPt, MakeQuat(DirIn), 0.f});
-				Tube.Rings.Add({JointPt, MakeQuat(DirOut), 1.f});
+				Tube.Rings.Add({JointPt, Frame, 0.f});
+				Frame = (Bend * Frame).GetNormalized();
+				Tube.Rings.Add({JointPt, Frame, 1.f});
 			}
 			else if (JointSegments <= 0 || Alpha > PI - AngleThreshold)
 			{
-				// Sharp miter
-				FVector MiterDir = (DirIn + DirOut);
-				if (MiterDir.SizeSquared() < KINDA_SMALL_NUMBER)
-				{
-					MiterDir = DirOut;
-				}
-				const FQuat MiterQ = MakeQuat(MiterDir.GetSafeNormal());
+				// Sharp miter: both rings lie in the plane halfway between the two segments
+				const FQuat MiterQ = (FQuat::Slerp(FQuat::Identity, Bend, 0.5f) * Frame).GetNormalized();
 				Tube.Rings.Add({JointPt, MiterQ, 0.f});
 				Tube.Rings.Add({JointPt, MiterQ, 1.f});
+				Frame = (Bend * Frame).GetNormalized();
 			}
 			else
 			{
-				// Smooth spherical joint: slerp from incoming to outgoing
-				const FQuat QIn = MakeQuat(DirIn);
-				const FQuat QOut = MakeQuat(DirOut);
+				// Smooth joint: rings follow a circular arc tangent to both segments. Turning the rings around the
+				// joint point itself overlaps them on the inside of the bend, folding it inside-out, so the arc's
+				// radius is at least the tube's. Each joint may use up to half of each neighbouring segment, so on
+				// very short segments the arc tightens to fit.
+				const float TanHalfAlpha = FMath::Tan(Alpha * 0.5f);
+				const float MaxTrim = 0.5f * FMath::Min(Lengths[p], Lengths[p + 1]);
+				const float BendRadius = FMath::Min(Chain.Width * 1.1f, MaxTrim / TanHalfAlpha);
+				const FVector ArcStart = JointPt - DirIn * (BendRadius * TanHalfAlpha);
+				const FVector ArcCenter = ArcStart + (DirOut - DirIn * CosAlpha).GetSafeNormal() * BendRadius;
 
 				for (int32 j = 0; j <= JointSegments; ++j)
 				{
 					const float T = static_cast<float>(j) / static_cast<float>(JointSegments);
-					Tube.Rings.Add({JointPt, FQuat::Slerp(QIn, QOut, T), T});
+					const FQuat PartialBend = FQuat::Slerp(FQuat::Identity, Bend, T);
+					const FVector RingCenter = ArcCenter + PartialBend.RotateVector(ArcStart - ArcCenter);
+					Tube.Rings.Add({RingCenter, (PartialBend * Frame).GetNormalized(), T});
 				}
+				Frame = (Bend * Frame).GetNormalized();
 			}
 		}
 
 		// Last endpoint ring
-		Tube.Rings.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), 0.f});
+		Tube.Rings.Add({Chain.Points.Last(), Frame, 0.f});
 
 		// Record sphere joint if chain ends at a fork point (parent tube welding)
 		{
@@ -489,7 +506,7 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 			const TArray<int32>* StartsAtLast = StartMap.Find(LastKey);
 			if (StartsAtLast && StartsAtLast->Num() > 1)
 			{
-				Forks.Add({Chain.Points.Last(), Chain.Width, MakeQuat(Dirs.Last()), Tubes.Num()});
+				Forks.Add({Chain.Points.Last(), Chain.Width, Frame, Tubes.Num()});
 			}
 		}
 
@@ -507,7 +524,7 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 			// Leaf: last point not any segment's Start → branch tip
 			if (!StartMap.Contains(Quantize(Chain.Points.Last())))
 			{
-				Caps.Add({Chain.Points.Last(), MakeQuat(Dirs.Last()), Dirs.Last(), Chain.Width, TerminalTaper});
+				Caps.Add({Chain.Points.Last(), Frame, Dirs.Last(), Chain.Width, TerminalTaper});
 			}
 		}
 
@@ -654,10 +671,8 @@ void ABranchingLinesActor::GenerateSmoothMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void ABranchingLinesActor::GenerateEndCap(const FVector& RingCenter, const FQuat& RingOrientation, const FVector& OutwardDir, const float Width, const float InTaperLength, int32& InVertexIndex, int32& InTriangleIndex)
@@ -703,12 +718,14 @@ void ABranchingLinesActor::GenerateEndCap(const FVector& RingCenter, const FQuat
 			(CachedCrossSectionPoints[j].Y + 1.f) * 0.5f);
 	}
 
-	// Triangle fan from tip to rim
+	// Triangle fan from tip to rim. The rim runs counter-clockwise around the ring axis, so a cap facing
+	// against the axis (the root end of a tube) needs the opposite winding to face outward.
+	const bool bFacesRingAxis = FVector::DotProduct(OutwardDir, RingOrientation.RotateVector(FVector::UpVector)) > 0.f;
 	for (int32 j = 0; j < RadialSegmentCount; ++j)
 	{
 		Triangles[InTriangleIndex++] = TipIdx;
-		Triangles[InTriangleIndex++] = RimBaseIdx + j + 1;
-		Triangles[InTriangleIndex++] = RimBaseIdx + j;
+		Triangles[InTriangleIndex++] = RimBaseIdx + (bFacesRingAxis ? j + 1 : j);
+		Triangles[InTriangleIndex++] = RimBaseIdx + (bFacesRingAxis ? j : j + 1);
 	}
 }
 
@@ -860,7 +877,7 @@ void ABranchingLinesActor::CreateSegments()
 
 			// Offset the midpoint by a random number along the normal
 			const FVector Normal = FVector::CrossProduct(EachSegment.End - EachSegment.Start, OffsetDirections[RngStream.RandRange(0, 1)]).GetSafeNormal();
-			Midpoint += Normal * RngStream.RandRange(-CurrentBranchOffset, CurrentBranchOffset);
+			Midpoint += Normal * RngStream.FRandRange(-CurrentBranchOffset, CurrentBranchOffset);
 
 			 // Create two new segments
 			NewGen.Add(FBranchSegment(EachSegment.Start, Midpoint, EachSegment.Width, EachSegment.ForkGeneration));

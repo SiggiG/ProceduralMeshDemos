@@ -128,7 +128,11 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 		return;
 	}
 
-	if (Size.X < 1 || Size.Y < 1 || LengthSections < 1 || WidthSections < 1)
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	LengthSections = FMath::Clamp(LengthSections, 1, 512);
+	WidthSections = FMath::Clamp(WidthSections, 1, 512);
+
+	if (Size.X < 1 || Size.Y < 1)
 	{
 		MeshComponent->ClearAllMeshSections();
 		bMeshCreated = false;
@@ -154,10 +158,8 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 		GenerateGrid(FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 		MeshComponent->ClearAllMeshSections();
 		MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, {}, false);
-		if (Material)
-		{
-			MeshComponent->SetMaterial(0, Material);
-		}
+		// Also when null, so clearing Material removes the previous override
+		MeshComponent->SetMaterial(0, Material);
 		bMeshCreated = true;
 		bRequiresMeshRebuild = false;
 	}

@@ -17,7 +17,6 @@ void ACylinderStripActor::OnConstruction(const FTransform& Transform)
 
 	if (bRequiresMeshRebuild || MeshComponent->GetNumSections() == 0)
 	{
-		PreCacheCrossSection();
 		GenerateMesh();
 		bRequiresMeshRebuild = false;
 	}
@@ -48,7 +47,6 @@ void ACylinderStripActor::PostLoad()
 		return;
 	}
 
-	PreCacheCrossSection();
 	GenerateMesh();
 	bRequiresMeshRebuild = false;
 }
@@ -87,6 +85,10 @@ void ACylinderStripActor::GenerateMesh()
 		return;
 	}
 
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	RadialSegmentCount = FMath::Clamp(RadialSegmentCount, 3, 64);
+	PreCacheCrossSection();
+
 	MeshComponent->ClearAllMeshSections();
 
 	if (LinePoints.Num() < 2)
@@ -107,10 +109,8 @@ void ACylinderStripActor::GenerateMesh()
 	}
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 FVector ACylinderStripActor::RotatePointAroundPivot(const FVector InPoint, const FVector InPivot, const FVector InAngles)

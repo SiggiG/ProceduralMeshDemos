@@ -54,7 +54,7 @@ void AHeightFieldNoiseActor::PostLoad()
 void AHeightFieldNoiseActor::SetupMeshBuffers()
 {
 	const int32 NumberOfPoints = (LengthSections + 1) * (WidthSections + 1);
-	const int32 VertexCount = LengthSections * WidthSections * 4; // 4x vertices per quad/section
+	const int32 VertexCount = LengthSections * WidthSections * 6; // 2 triangles per quad/section, each with its own 3 vertices
 	const int32 TriangleCount = LengthSections * WidthSections * 2 * 3; // 2x3 vertex indexes per quad
 
 	if (VertexCount != Positions.Num())
@@ -103,9 +103,13 @@ void AHeightFieldNoiseActor::GenerateMesh()
 		return;
 	}
 
+	// ClampMin/ClampMax only limit the details panel; Blueprints can write any value
+	LengthSections = FMath::Clamp(LengthSections, 1, 512);
+	WidthSections = FMath::Clamp(WidthSections, 1, 512);
+
 	MeshComponent->ClearAllMeshSections();
 
-	if (Size.X < 1 || Size.Y < 1 || LengthSections < 1 || WidthSections < 1)
+	if (Size.X < 1 || Size.Y < 1)
 	{
 		return;
 	}
@@ -115,10 +119,8 @@ void AHeightFieldNoiseActor::GenerateMesh()
 	GenerateGrid(Positions, Triangles, Normals, Tangents, TexCoords, FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
 
 	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
-	if (Material)
-	{
-		MeshComponent->SetMaterial(0, Material);
-	}
+	// Also when null, so clearing Material removes the previous override
+	MeshComponent->SetMaterial(0, Material);
 }
 
 void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<int32>& InTriangles, TArray<FVector>& InNormals, TArray<FProcMeshTangent>& InTangents, TArray<FVector2D>& InTexCoords, const FVector2D InSize, const int32 InLengthSections, const int32 InWidthSections, const TArray<float>& InHeightValues)
@@ -133,12 +135,6 @@ void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<in
 	{
 		for (int32 Y = 0; Y < InWidthSections; Y++)
 		{
-			// Setup a quad
-			const int32 BottomLeftIndex = VertexIndex++;
-			const int32 BottomRightIndex = VertexIndex++;
-			const int32 TopRightIndex = VertexIndex++;
-			const int32 TopLeftIndex = VertexIndex++;
-
 			const int32 NoiseIndex_BottomLeft = (X * (InWidthSections + 1)) + Y;
 			const int32 NoiseIndex_BottomRight = NoiseIndex_BottomLeft + 1;
 			const int32 NoiseIndex_TopLeft = ((X + 1) * (InWidthSections + 1)) + Y;
@@ -148,38 +144,39 @@ void AHeightFieldNoiseActor::GenerateGrid(TArray<FVector>& InVertices, TArray<in
 			const FVector PBottomRight = FVector(X * SectionSize.X, (Y+1) * SectionSize.Y, InHeightValues[NoiseIndex_BottomRight]);
 			const FVector PTopRight = FVector((X + 1) * SectionSize.X, (Y + 1) * SectionSize.Y, InHeightValues[NoiseIndex_TopRight]);
 			const FVector PTopLeft = FVector((X+1) * SectionSize.X, Y * SectionSize.Y, InHeightValues[NoiseIndex_TopLeft]);
-			
-			InVertices[BottomLeftIndex] = PBottomLeft;
-			InVertices[BottomRightIndex] = PBottomRight;
-			InVertices[TopRightIndex] = PTopRight;
-			InVertices[TopLeftIndex] = PTopLeft;
 
 			// Note that Unreal UV origin (0,0) is top left
-			InTexCoords[BottomLeftIndex] = FVector2D(static_cast<float>(X) / static_cast<float>(InLengthSections), static_cast<float>(Y) / static_cast<float>(InWidthSections));
-			InTexCoords[BottomRightIndex] = FVector2D(static_cast<float>(X) / static_cast<float>(InLengthSections), static_cast<float>(Y + 1) / static_cast<float>(InWidthSections));
-			InTexCoords[TopRightIndex] = FVector2D(static_cast<float>(X + 1) / static_cast<float>(InLengthSections), static_cast<float>(Y + 1) / static_cast<float>(InWidthSections));
-			InTexCoords[TopLeftIndex] = FVector2D(static_cast<float>(X + 1) / static_cast<float>(InLengthSections), static_cast<float>(Y) / static_cast<float>(InWidthSections));
-
-			// Now create two triangles from those four vertices
-			// The order of these (clockwise/counter-clockwise) dictates which way the normal will face. 
-			InTriangles[TriangleIndex++] = BottomLeftIndex;
-			InTriangles[TriangleIndex++] = TopRightIndex;
-			InTriangles[TriangleIndex++] = TopLeftIndex;
-
-			InTriangles[TriangleIndex++] = BottomLeftIndex;
-			InTriangles[TriangleIndex++] = BottomRightIndex;
-			InTriangles[TriangleIndex++] = TopRightIndex;
-
-			// Normals
-			const FVector NormalCurrent = FVector::CrossProduct(InVertices[BottomLeftIndex] - InVertices[TopLeftIndex], InVertices[TopLeftIndex] - InVertices[TopRightIndex]).GetSafeNormal();
-
-			// If not smoothing we just set the vertex normal to the same normal as the polygon they belong to
-			InNormals[BottomLeftIndex] = InNormals[BottomRightIndex] = InNormals[TopRightIndex] = InNormals[TopLeftIndex] = NormalCurrent;
+			const FVector2D UVBottomLeft = FVector2D(static_cast<float>(X) / static_cast<float>(InLengthSections), static_cast<float>(Y) / static_cast<float>(InWidthSections));
+			const FVector2D UVBottomRight = FVector2D(static_cast<float>(X) / static_cast<float>(InLengthSections), static_cast<float>(Y + 1) / static_cast<float>(InWidthSections));
+			const FVector2D UVTopRight = FVector2D(static_cast<float>(X + 1) / static_cast<float>(InLengthSections), static_cast<float>(Y + 1) / static_cast<float>(InWidthSections));
+			const FVector2D UVTopLeft = FVector2D(static_cast<float>(X + 1) / static_cast<float>(InLengthSections), static_cast<float>(Y) / static_cast<float>(InWidthSections));
 
 			// Tangents (perpendicular to the surface)
 			const FVector SurfaceTangentVec = (PBottomLeft - PBottomRight).GetSafeNormal();
 			const FProcMeshTangent SurfaceTangent(SurfaceTangentVec, /*bFlipTangentY=*/ false);
-			InTangents[BottomLeftIndex] = InTangents[BottomRightIndex] = InTangents[TopRightIndex] = InTangents[TopLeftIndex] = SurfaceTangent;
+
+			// Create two triangles for the quad, each with its own three vertices. Random heights make the quad's corners
+			// non-coplanar, so the two triangles need separate flat normals: one normal for the whole quad can face far
+			// enough away from a triangle to light it from behind.
+			// The order of these (clockwise/counter-clockwise) dictates which way the normal will face.
+			const FVector TrianglePoints[2][3] = { { PBottomLeft, PTopRight, PTopLeft }, { PBottomLeft, PBottomRight, PTopRight } };
+			const FVector2D TriangleUVs[2][3] = { { UVBottomLeft, UVTopRight, UVTopLeft }, { UVBottomLeft, UVBottomRight, UVTopRight } };
+
+			for (int32 TriangleInQuad = 0; TriangleInQuad < 2; TriangleInQuad++)
+			{
+				const FVector* Points = TrianglePoints[TriangleInQuad];
+				const FVector NormalCurrent = FVector::CrossProduct(Points[2] - Points[0], Points[1] - Points[0]).GetSafeNormal();
+
+				for (int32 Corner = 0; Corner < 3; Corner++)
+				{
+					const int32 NewVertIndex = VertexIndex++;
+					InVertices[NewVertIndex] = Points[Corner];
+					InTexCoords[NewVertIndex] = TriangleUVs[TriangleInQuad][Corner];
+					InNormals[NewVertIndex] = NormalCurrent;
+					InTangents[NewVertIndex] = SurfaceTangent;
+					InTriangles[TriangleIndex++] = NewVertIndex;
+				}
+			}
 		}
 	}
 }

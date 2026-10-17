@@ -44,7 +44,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
 	float TrunkWidth = 2.5f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "3"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "3", ClampMax = "64"))
 	int32 RadialSegmentCount = 10;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters")
@@ -56,7 +56,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "1.0"))
 	float CrownRadius = 100.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "1", ClampMax = "2000"))
 	int32 AttractorCount = 500;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "1.0"))
@@ -68,7 +68,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0.1"))
 	float GrowthStepLength = 5.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "1", ClampMax = "500"))
 	int32 MaxGrowthIterations = 200;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Parameters", meta = (ClampMin = "0.01"))
@@ -135,6 +135,7 @@ private:
 		TArray<FVector> SplinePoints;
 		TArray<float> SplineWidths;
 		TArray<float> SplineDistances;
+		TArray<FQuat> RingOrientations; // One per spline point, set by ComputeRingOrientations()
 		float TotalLength;
 	};
 
@@ -151,6 +152,9 @@ private:
 	void EvaluateSplines(TArray<FBranchPath>& Paths, const TArray<FBranchNode>& Nodes);
 	void TrimPathsAtForks(TArray<FBranchPath>& Paths, const TArray<FBranchNode>& Nodes,
 		TMap<int32, FForkTrimInfo>& OutParentTrims, TMap<int32, FForkTrimInfo>& OutChildTrims);
+	float TransitionLengthAt(const FBranchNode& ForkNode) const;
+	static bool IsReversedFork(const TArray<FBranchNode>& Nodes, int32 ForkIdx, int32 ChildIdx);
+	static void ComputeRingOrientations(TArray<FBranchPath>& Paths);
 	void GenerateTubeMesh(const TArray<FBranchPath>& Paths, int32& VertIdx, int32& TriIdx);
 	void GenerateForkTransitions(const TArray<FBranchNode>& Nodes, const TArray<FBranchPath>& Paths,
 		const TMap<int32, FForkTrimInfo>& ParentTrims, const TMap<int32, FForkTrimInfo>& ChildTrims,
