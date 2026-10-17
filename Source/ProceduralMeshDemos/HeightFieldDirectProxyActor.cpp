@@ -30,7 +30,10 @@ void AHeightFieldDirectProxyActor::OnConstruction(const FTransform& Transform)
 #if WITH_EDITOR
 void AHeightFieldDirectProxyActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	// A null MemberProperty during undo/redo means any of our properties may have changed. Elsewhere (actor
+	// placement, paste) it follows construction directly, so rebuilding there would only duplicate work.
+	const FProperty* MemberProperty = PropertyChangedEvent.MemberProperty;
+	if (MemberProperty ? MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()) : GIsTransacting)
 	{
 		bRequiresMeshRebuild = true;
 	}
@@ -41,6 +44,14 @@ void AHeightFieldDirectProxyActor::PostEditChangeProperty(FPropertyChangedEvent&
 void AHeightFieldDirectProxyActor::PostLoad()
 {
 	Super::PostLoad();
+
+	// Templates never render; generating here would also make new instances inherit the template's
+	// mesh sections, so OnConstruction would skip generating from the instance's own parameters
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		return;
+	}
+
 	SetActorTickEnabled(AnimateMesh);
 	bMeshCreated = false;
 	GenerateMesh();
@@ -107,7 +118,9 @@ void AHeightFieldDirectProxyActor::GenerateMesh()
 	const int32 NumVerts = (LengthSections + 1) * (WidthSections + 1);
 	const FVector2D SectionSize = FVector2D(Size.X / LengthSections, Size.Y / WidthSections);
 
-	if (!bMeshCreated)
+	// Parameters can change without OnConstruction resetting bMeshCreated: edits during PIE (construction
+	// scripts don't rerun in game worlds) or Blueprint writes. The fast path must never see a new grid size.
+	if (!bMeshCreated || bRequiresMeshRebuild || Positions.Num() != NumVerts)
 	{
 		// Full rebuild: topology + positions + normals + UVs
 		const int32 TriangleCount = LengthSections * WidthSections * 2 * 3;
@@ -162,6 +175,7 @@ void AHeightFieldDirectProxyActor::GenerateMesh()
 		MeshComponent->SetFixedBounds(FBox(FVector(0, 0, -Size.Z), FVector(Size.X, Size.Y, Size.Z)));
 
 		bMeshCreated = true;
+		bRequiresMeshRebuild = false;
 	}
 	else
 	{

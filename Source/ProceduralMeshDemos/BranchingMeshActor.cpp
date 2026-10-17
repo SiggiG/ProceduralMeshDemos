@@ -26,7 +26,10 @@ void ABranchingMeshActor::OnConstruction(const FTransform& Transform)
 #if WITH_EDITOR
 void ABranchingMeshActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	// A null MemberProperty during undo/redo means any of our properties may have changed. Elsewhere (actor
+	// placement, paste) it follows construction directly, so rebuilding there would only duplicate work.
+	const FProperty* MemberProperty = PropertyChangedEvent.MemberProperty;
+	if (MemberProperty ? MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()) : GIsTransacting)
 	{
 		bRequiresMeshRebuild = true;
 	}
@@ -37,6 +40,14 @@ void ABranchingMeshActor::PostEditChangeProperty(FPropertyChangedEvent& Property
 void ABranchingMeshActor::PostLoad()
 {
 	Super::PostLoad();
+
+	// Templates never render; generating here would also make new instances inherit the template's
+	// mesh sections, so OnConstruction would skip generating from the instance's own parameters
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		return;
+	}
+
 	PreCacheCrossSection();
 	GenerateMesh();
 	bRequiresMeshRebuild = false;
@@ -987,24 +998,18 @@ void ABranchingMeshActor::GenerateEndCaps(const TArray<FBranchNode>& Nodes, cons
 
 void ABranchingMeshActor::GenerateCollision(const TArray<FBranchPath>& Paths)
 {
-	MeshComponent->ClearCollisionConvexMeshes();
-
-	if (CollisionType == EBranchCollisionType::None)
+	if (CollisionType != EBranchCollisionType::SimpleCapsules)
 	{
-		MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		// ComplexAsSimple uses the mesh section's own collision, set up in GenerateMesh()
+		MeshComponent->ClearCollisionConvexMeshes();
+		MeshComponent->SetCollisionEnabled(CollisionType == EBranchCollisionType::None ? ECollisionEnabled::NoCollision : ECollisionEnabled::QueryAndPhysics);
 		return;
 	}
 
 	MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-	if (CollisionType == EBranchCollisionType::ComplexAsSimple)
-	{
-		MeshComponent->bUseComplexAsSimpleCollision = true;
-		return;
-	}
-
 	// SimpleCapsules: approximate each branch path with convex hull segments
-	MeshComponent->bUseComplexAsSimpleCollision = false;
+	TArray<TArray<FVector>> ConvexMeshes;
 
 	for (const FBranchPath& Path : Paths)
 	{
@@ -1050,9 +1055,12 @@ void ABranchingMeshActor::GenerateCollision(const TArray<FBranchPath>& Paths)
 				}
 			}
 
-			MeshComponent->AddCollisionConvexMesh(ConvexVerts);
+			ConvexMeshes.Add(MoveTemp(ConvexVerts));
 		}
 	}
+
+	// Set all hulls at once; AddCollisionConvexMesh() rebuilds the physics state for every hull added
+	MeshComponent->SetCollisionConvexMeshes(ConvexMeshes);
 }
 
 // --- Main mesh generation ---
@@ -1190,7 +1198,10 @@ void ABranchingMeshActor::GenerateMesh()
 		Triangles.SetNum(TriIdx);
 	}
 
-	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, false);
+	// Complex-as-simple needs triangle collision on the section, and the flag set before the section triggers UpdateCollision()
+	const bool bComplexAsSimple = CollisionType == EBranchCollisionType::ComplexAsSimple;
+	MeshComponent->bUseComplexAsSimpleCollision = bComplexAsSimple;
+	MeshComponent->CreateMeshSection_LinearColor(0, Positions, Triangles, Normals, TexCoords, {}, {}, {}, {}, Tangents, bComplexAsSimple);
 	if (Material)
 	{
 		MeshComponent->SetMaterial(0, Material);

@@ -27,7 +27,10 @@ void ASierpinskiLineActor::OnConstruction(const FTransform& Transform)
 #if WITH_EDITOR
 void ASierpinskiLineActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	// A null MemberProperty during undo/redo means any of our properties may have changed. Elsewhere (actor
+	// placement, paste) it follows construction directly, so rebuilding there would only duplicate work.
+	const FProperty* MemberProperty = PropertyChangedEvent.MemberProperty;
+	if (MemberProperty ? MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()) : GIsTransacting)
 	{
 		bRequiresMeshRebuild = true;
 	}
@@ -38,6 +41,14 @@ void ASierpinskiLineActor::PostEditChangeProperty(FPropertyChangedEvent& Propert
 void ASierpinskiLineActor::PostLoad()
 {
 	Super::PostLoad();
+
+	// Templates never render; generating here would also make new instances inherit the template's
+	// mesh sections, so OnConstruction would skip generating from the instance's own parameters
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		return;
+	}
+
 	PreCacheCrossSection();
 	GenerateLines();
 	GenerateMesh();

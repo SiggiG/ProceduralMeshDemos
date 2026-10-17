@@ -387,11 +387,19 @@ void UDirectProxyMeshComponent::SetFixedBounds(const FBox& InBounds)
 
 void UDirectProxyMeshComponent::UpdateDynamicData(const TArray<FVector3f>& InPositions, const TArray<FVector3f>& InNormals)
 {
+	// Persistent buffers are sized by SetStaticTopology(); anything else would overrun them
+	if (!ensure(InPositions.Num() == Positions.Num() && InNormals.Num() == Normals.Num()))
+	{
+		return;
+	}
+
 	// Copy into persistent buffers (avoids per-frame allocation)
 	FMemory::Memcpy(Positions.GetData(), InPositions.GetData(), InPositions.Num() * sizeof(FVector3f));
 	FMemory::Memcpy(Normals.GetData(), InNormals.GetData(), InNormals.Num() * sizeof(FVector3f));
 
-	if (SceneProxy)
+	// Skip while a proxy recreation is pending (e.g. right after SetStaticTopology): the current
+	// proxy's GPU buffers are sized for the old topology, and the new proxy is built from Positions/Normals
+	if (SceneProxy && !IsRenderStateDirty())
 	{
 		FDirectProxyDynamicData NewData;
 		NewData.Positions = Positions;

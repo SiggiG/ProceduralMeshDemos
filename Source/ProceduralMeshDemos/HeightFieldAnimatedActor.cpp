@@ -28,7 +28,10 @@ void AHeightFieldAnimatedActor::OnConstruction(const FTransform& Transform)
 #if WITH_EDITOR
 void AHeightFieldAnimatedActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (PropertyChangedEvent.MemberProperty && PropertyChangedEvent.MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()))
+	// A null MemberProperty during undo/redo means any of our properties may have changed. Elsewhere (actor
+	// placement, paste) it follows construction directly, so rebuilding there would only duplicate work.
+	const FProperty* MemberProperty = PropertyChangedEvent.MemberProperty;
+	if (MemberProperty ? MemberProperty->GetOwnerClass()->IsChildOf(StaticClass()) : GIsTransacting)
 	{
 		bRequiresMeshRebuild = true;
 	}
@@ -39,6 +42,14 @@ void AHeightFieldAnimatedActor::PostEditChangeProperty(FPropertyChangedEvent& Pr
 void AHeightFieldAnimatedActor::PostLoad()
 {
 	Super::PostLoad();
+
+	// Templates never render; generating here would also make new instances inherit the template's
+	// mesh sections, so OnConstruction would skip generating from the instance's own parameters
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		return;
+	}
+
 	SetActorTickEnabled(AnimateMesh);
 	bMeshCreated = false;
 	GenerateMesh();
@@ -124,10 +135,14 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 		return;
 	}
 
+	// Parameters can change without OnConstruction resetting bMeshCreated: edits during PIE (construction
+	// scripts don't rerun in game worlds) or Blueprint writes. The fast path must never see a new grid size.
+	const bool bGridSizeChanged = Positions.Num() != (LengthSections + 1) * (WidthSections + 1);
+
 	SetupMeshBuffers();
 	GeneratePoints();
 
-	if (bMeshCreated)
+	if (bMeshCreated && !bRequiresMeshRebuild && !bGridSizeChanged)
 	{
 		// Fast path: only recompute positions and normals, skip triangles and UVs
 		UpdatePositionsAndNormals(FVector2D(Size.X, Size.Y), LengthSections, WidthSections, HeightValues);
@@ -144,6 +159,7 @@ void AHeightFieldAnimatedActor::GenerateMesh()
 			MeshComponent->SetMaterial(0, Material);
 		}
 		bMeshCreated = true;
+		bRequiresMeshRebuild = false;
 	}
 }
 

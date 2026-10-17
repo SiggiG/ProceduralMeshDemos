@@ -56,6 +56,17 @@ void URuntimeProceduralMeshComponent::Serialize(FArchive& Ar)
 			}
 		}
 
+		// Save simple convex collision as well, otherwise it would be lost until the owner regenerates.
+		// The body setup mirrors the component's (private) convex elements after every UpdateCollision().
+		TArray<TArray<FVector>> SavedConvexMeshes;
+		if (ProcMeshBodySetup)
+		{
+			for (const FKConvexElem& ConvexElem : ProcMeshBodySetup->AggGeom.ConvexElems)
+			{
+				SavedConvexMeshes.Add(ConvexElem.VertexData);
+			}
+		}
+
 		// Clear mesh and collision data so nothing large is written.
 		ClearAllMeshSections();
 		ClearCollisionConvexMeshes();
@@ -72,6 +83,11 @@ void URuntimeProceduralMeshComponent::Serialize(FArchive& Ar)
 		for (int32 i = 0; i < SavedSections.Num(); ++i)
 		{
 			SetProcMeshSection(i, SavedSections[i]);
+		}
+
+		if (SavedConvexMeshes.Num() > 0)
+		{
+			SetCollisionConvexMeshes(SavedConvexMeshes);
 		}
 
 		return;
