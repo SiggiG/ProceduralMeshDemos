@@ -152,7 +152,6 @@ I want to provide more examples in the future, and would love if members of the 
 ## Contact info
 
 If you have any questions, suggestions or want to contribute to this project please contact me at one of these places:
-* You can reach me via email at siggi@siggig.is
 * Message me on the Unreal forums on username SiggiG
 * Bsky: https://bsky.app/profile/siggigg.bsky.social
 
